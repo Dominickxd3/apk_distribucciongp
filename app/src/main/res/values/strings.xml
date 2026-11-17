@@ -1,0 +1,55 @@
+<resources>
+    <string name="app_name">GPSCamiones</string>
+    <string name="app_subtitle">Monitoreo de Telemetría GPS</string>
+
+    <!-- Navegación Inferior -->
+    <string name="nav_dashboard">Inicio</string>
+    <string name="nav_map">Mapa</string>
+    <string name="nav_history">Historial</string>
+    <string name="nav_admin">Más</string>
+
+    <!-- Estados -->
+    <string name="status_tracking_active">SEGUIMIENTO ACTIVO</string>
+    <string name="status_waiting_gps">ESPERANDO FIJACIÓN GPS</string>
+    <string name="status_stopped">SEGUIMIENTO DETENIDO</string>
+    <string name="status_error">ERROR / ATENCIÓN</string>
+    <string name="status_permission_denied">PERMISOS INSUFICIENTES</string>
+
+    <!-- Tarjeta Última Ubicación -->
+    <string name="last_location_title">Última Ubicación Registrada</string>
+    <string name="latitude_label">Latitud</string>
+    <string name="longitude_label">Longitud</string>
+    <string name="accuracy_label">Precisión</string>
+    <string name="speed_label">Velocidad</string>
+    <string name="date_gps_label">Fecha GPS</string>
+    <string name="date_sqlite_label">Fecha SQLite</string>
+    <string name="mock_location_real">GPS Real Comprobado</string>
+    <string name="mock_location_detected">Ubicación Simulada (Mock)</string>
+
+    <!-- Indicadores SQLite -->
+    <string name="sqlite_total_records">Total Almacenados</string>
+    <string name="sqlite_pending_sync">Pendientes Sincronizar</string>
+
+    <!-- Controles -->
+    <string name="btn_start_tracking">Activar Seguimiento</string>
+    <string name="btn_stop_tracking">Detener Seguimiento</string>
+    <string name="btn_refresh">Actualizar Información</string>
+
+    <!-- Diagnóstico -->
+    <string name="diagnostic_title">Diagnóstico Técnico del Sistema</string>
+    <string name="service_in_memory">Servicio activo en memoria</string>
+    <string name="tracking_enabled">Seguimiento habilitado</string>
+    <string name="permission_fine">Permiso ubicación precisa</string>
+    <string name="permission_background">Permiso segundo plano</string>
+    <string name="permission_notifications">Permiso notificaciones</string>
+
+    <!-- Auth & Config -->
+    <string name="auth_title">Acceso Administrativo</string>
+    <string name="auth_login">Iniciar Sesión</string>
+    <string name="auth_logout">Cerrar Sesión</string>
+    <string name="auth_username">Usuario o Correo</string>
+    <string name="auth_password">Contraseña</string>
+    <string name="auth_offline_notice">Servidor de autenticación empresarial no configurado (Modo Local Seguro)</string>
+    <string name="vehicle_assigned">Vehículo Asignado</string>
+    <string name="driver_name">Conductor</string>
+</resources>

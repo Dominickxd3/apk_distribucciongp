@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Colores Corporativos GPSCamiones (Azul Petróleo y Neutros) -->
+    <color name="primary_petrol">#153452</color>
+    <color name="primary_petrol_dark">#0E2337</color>
+    <color name="primary_petrol_light">#1F4E79</color>
+    <color name="primary_container">#E8F1F8</color>
+    <color name="on_primary_container">#0A1D30</color>
+
+    <color name="secondary_accent">#1E6091</color>
+    <color name="secondary_container">#DDEBFA</color>
+
+    <!-- Fondos y Superficies -->
+    <color name="bg_light">#F8FAFC</color>
+    <color name="bg_surface">#FFFFFF</color>
+    <color name="bg_surface_variant">#F1F5F9</color>
+    <color name="bg_card_stroke">#E2E8F0</color>
+    <color name="divider">#E2E8F0</color>
+
+    <!-- Tipografía -->
+    <color name="text_primary">#0F172A</color>
+    <color name="text_secondary">#475569</color>
+    <color name="text_tertiary">#94A3B8</color>
+    <color name="text_on_primary">#FFFFFF</color>
+
+    <!-- Estados Telemétricos Semánticos -->
+    <!-- Verde: Seguimiento activo comprobado / GPS fijado -->
+    <color name="status_active">#16A34A</color>
+    <color name="status_active_container">#DCFCE7</color>
+    <color name="status_active_text">#15803D</color>
+
+    <!-- Ámbar / Naranja: Advertencia / Esperando satélites / Sync pendiente -->
+    <color name="status_warning">#D97706</color>
+    <color name="status_warning_container">#FEF3C7</color>
+    <color name="status_warning_text">#B45309</color>
+
+    <!-- Rojo: Detenido / Error / Permiso revocado / Mock no autorizado -->
+    <color name="status_danger">#DC2626</color>
+    <color name="status_danger_container">#FEE2E2</color>
+    <color name="status_danger_text">#B91C1C</color>
+
+    <!-- Azul: Información / Sincronización en curso -->
+    <color name="status_info">#2563EB</color>
+    <color name="status_info_container">#DBEAFE</color>
+    <color name="status_info_text">#1D4ED8</color>
+
+    <!-- Neutro / Inactivo -->
+    <color name="status_neutral">#64748B</color>
+    <color name="status_neutral_container">#F1F5F9</color>
+    <color name="status_neutral_text">#334155</color>
+
+    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFFFF</color>
+</resources>

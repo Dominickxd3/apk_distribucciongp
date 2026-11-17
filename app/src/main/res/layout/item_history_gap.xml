@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginTop="4dp"
+    android:layout_marginBottom="8dp"
+    android:background="@drawable/badge_status_warning"
+    android:gravity="center_vertical"
+    android:orientation="horizontal"
+    android:padding="10dp">
+
+    <ImageView
+        android:layout_width="18dp"
+        android:layout_height="18dp"
+        android:contentDescription="Salto temporal"
+        android:src="@drawable/ic_warning"
+        app:tint="@color/status_warning" />
+
+    <TextView
+        android:id="@+id/tv_gap_message"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="8dp"
+        android:layout_weight="1"
+        android:fontFamily="sans-serif-medium"
+        android:text="⚠️ Salto temporal de telemetría: 15 minutos sin registros satelitales"
+        android:textColor="@color/status_warning_text"
+        android:textSize="11sp" />
+</LinearLayout>
+

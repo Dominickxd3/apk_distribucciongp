@@ -1,0 +1,23 @@
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- Base application theme Material Design 3 (Dark) -->
+    <style name="Base.Theme.GPSCamiones" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/primary_petrol_light</item>
+        <item name="colorOnPrimary">@color/text_on_primary</item>
+        <item name="colorPrimaryContainer">@color/primary_petrol_dark</item>
+        <item name="colorOnPrimaryContainer">@color/primary_container</item>
+
+        <item name="colorSecondary">@color/secondary_accent</item>
+        <item name="colorSecondaryContainer">@color/primary_petrol_dark</item>
+
+        <item name="android:colorBackground">#0B131C</item>
+        <item name="colorSurface">#131F2D</item>
+        <item name="colorSurfaceVariant">#1C2D40</item>
+        <item name="colorOnSurface">#E2E8F0</item>
+        <item name="colorOnSurfaceVariant">#94A3B8</item>
+
+        <item name="android:statusBarColor">#0A141F</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:navigationBarColor">#131F2D</item>
+        <item name="android:windowLightNavigationBar" tools:targetApi="27">false</item>
+    </style>
+</resources>
