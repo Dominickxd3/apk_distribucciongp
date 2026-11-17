@@ -10,7 +10,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:fontFamily="sans-serif-black"
-        android:text="Acceso Administrativo"
+        android:text="Iniciar Sesión"
         android:textColor="@color/primary_petrol"
         android:textSize="18sp" />
 
@@ -19,7 +19,7 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="2dp"
         android:fontFamily="sans-serif"
-        android:text="Autenticación corporativa para control y configuración de telemetría de flota"
+        android:text="Ingresa con el usuario y contraseña del ERP autorizados por Sistemas."
         android:textColor="@color/text_secondary"
         android:textSize="12sp" />
 
@@ -73,7 +73,7 @@
         android:background="@drawable/badge_status_neutral"
         android:fontFamily="sans-serif"
         android:padding="8dp"
-        android:text="Aviso de arquitectura: Servidor corporativo central no configurado. Para pruebas autorizadas use: admin / admin123 o supervisor / super123."
+        android:text="El acceso se valida contra la tabla de usuarios del ERP. Solo las cuentas activas pueden ingresar."
         android:textColor="@color/text_secondary"
         android:textSize="11sp" />
 

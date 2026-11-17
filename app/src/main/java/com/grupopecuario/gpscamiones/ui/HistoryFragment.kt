@@ -8,6 +8,7 @@ import android.view.ViewGroup
 import androidx.fragment.app.Fragment
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.grupopecuario.gpscamiones.GPSDatabaseHelper
+import com.grupopecuario.gpscamiones.R
 import com.grupopecuario.gpscamiones.databinding.FragmentHistoryBinding
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -27,6 +28,10 @@ class HistoryFragment : Fragment() {
     private var fechaSeleccionadaCal: Calendar = Calendar.getInstance(TimeZone.getTimeZone("America/Lima"))
 
     private val formatoFechaDisplay = SimpleDateFormat("EEEE dd/MM/yyyy", Locale.forLanguageTag("es-PE")).apply {
+        timeZone = TimeZone.getTimeZone("America/Lima")
+    }
+
+    private val formatoHora = SimpleDateFormat("HH:mm", Locale.forLanguageTag("es-PE")).apply {
         timeZone = TimeZone.getTimeZone("America/Lima")
     }
 
@@ -50,22 +55,23 @@ class HistoryFragment : Fragment() {
     }
 
     private fun configurarFiltros() {
-        // Filtro Hoy
+        binding.toggleGroupFiltros.check(R.id.btn_filter_today)
+
         binding.btnFilterToday.setOnClickListener {
             fechaSeleccionadaCal = Calendar.getInstance(TimeZone.getTimeZone("America/Lima"))
+            binding.tvHistoryBadgeDay.text = "HOY"
             cargarHistorialParaFecha(fechaSeleccionadaCal)
         }
 
-        // Filtro Ayer
         binding.btnFilterYesterday.setOnClickListener {
             val cal = Calendar.getInstance(TimeZone.getTimeZone("America/Lima")).apply {
                 add(Calendar.DAY_OF_YEAR, -1)
             }
             fechaSeleccionadaCal = cal
+            binding.tvHistoryBadgeDay.text = "AYER"
             cargarHistorialParaFecha(fechaSeleccionadaCal)
         }
 
-        // Selector de Calendario
         binding.btnFilterDatePicker.setOnClickListener {
             val año = fechaSeleccionadaCal.get(Calendar.YEAR)
             val mes = fechaSeleccionadaCal.get(Calendar.MONTH)
@@ -80,6 +86,7 @@ class HistoryFragment : Fragment() {
                         set(Calendar.DAY_OF_MONTH, d)
                     }
                     fechaSeleccionadaCal = cal
+                    binding.tvHistoryBadgeDay.text = String.format(Locale.US, "%02d/%02d", d, m + 1)
                     cargarHistorialParaFecha(fechaSeleccionadaCal)
                 },
                 año,
@@ -109,17 +116,16 @@ class HistoryFragment : Fragment() {
         val finUtc = calFin.timeInMillis
 
         val fechaTexto = formatoFechaDisplay.format(Date(inicioUtc)).replaceFirstChar { it.uppercase() }
-        binding.tvHistorySelectedDate.text = "Fecha: $fechaTexto"
+        binding.tvHistorySelectedDate.text = "Auditoría del $fechaTexto"
 
         executor.execute {
             try {
                 val db = GPSDatabaseHelper.getInstance(ctx)
-                // Obtenemos los registros ordenados descendente
                 val registros = db.obtenerRegistrosPorRango(inicioUtc, finUtc, 500)
 
                 // Detectar lagunas temporales (> 5 minutos entre capturas)
                 val itemsFinales = mutableListOf<HistoryItem>()
-                val umbralSaltoMs = 5 * 60 * 1000L // 5 minutos
+                val umbralSaltoMs = 5 * 60 * 1000L
 
                 for (i in registros.indices) {
                     val regActual = registros[i]
@@ -135,10 +141,25 @@ class HistoryFragment : Fragment() {
                     }
                 }
 
+                // Cálculo de KPIs de la jornada
+                val totalPuntos = registros.size
+                val rangoHorario = if (registros.isNotEmpty()) {
+                    val horaInicio = formatoHora.format(Date(registros.last().fechaGPS))
+                    val horaFin = formatoHora.format(Date(registros.first().fechaGPS))
+                    "$horaInicio - $horaFin"
+                } else {
+                    "--:-- - --:--"
+                }
+
+                val maxVelMps = registros.mapNotNull { it.velocidad }.maxOrNull() ?: 0.0f
+                val maxVelKmH = maxVelMps * 3.6f
+
                 activity?.runOnUiThread {
                     if (_binding == null) return@runOnUiThread
 
-                    binding.tvHistoryPointsCount.text = "${registros.size} registros encontrados"
+                    binding.tvKpiTotalPuntos.text = totalPuntos.toString()
+                    binding.tvKpiRangoHorario.text = rangoHorario
+                    binding.tvKpiVelMaxima.text = String.format(Locale.US, "%.1f km/h", maxVelKmH)
 
                     if (registros.isEmpty()) {
                         binding.layoutHistoryEmpty.visibility = View.VISIBLE
@@ -160,4 +181,3 @@ class HistoryFragment : Fragment() {
         _binding = null
     }
 }
-

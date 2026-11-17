@@ -7,6 +7,7 @@ import android.view.View
 import android.view.ViewGroup
 import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.DialogFragment
+import com.grupopecuario.gpscamiones.MainActivity
 import com.grupopecuario.gpscamiones.auth.AuthRepository
 import com.grupopecuario.gpscamiones.auth.AuthResult
 import com.grupopecuario.gpscamiones.databinding.DialogLoginBinding
@@ -17,9 +18,22 @@ class LoginDialogFragment : DialogFragment() {
     private val binding get() = _binding!!
 
     private var onLoginSuccessListener: (() -> Unit)? = null
+    private var required = false
 
     fun setOnLoginSuccessListener(listener: () -> Unit) {
         this.onLoginSuccessListener = listener
+    }
+
+    fun setRequired(value: Boolean) {
+        required = value
+    }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        required = savedInstanceState?.getBoolean(ARG_REQUIRED)
+            ?: arguments?.getBoolean(ARG_REQUIRED)
+            ?: required
+        isCancelable = !required
     }
 
     override fun onCreateView(
@@ -35,6 +49,7 @@ class LoginDialogFragment : DialogFragment() {
         super.onViewCreated(view, savedInstanceState)
 
         val authRepository = AuthRepository(requireContext())
+        binding.btnCancelLogin.visibility = if (required) View.GONE else View.VISIBLE
 
         binding.btnCancelLogin.setOnClickListener {
             dismiss()
@@ -55,6 +70,7 @@ class LoginDialogFragment : DialogFragment() {
                 when (result) {
                     is AuthResult.Success -> {
                         onLoginSuccessListener?.invoke()
+                            ?: (activity as? MainActivity)?.sesionIniciada()
                         dismiss()
                     }
                     is AuthResult.Failure -> {
@@ -88,10 +104,16 @@ class LoginDialogFragment : DialogFragment() {
 
     companion object {
         const val TAG = "LoginDialogFragment"
+        private const val ARG_REQUIRED = "login_requerido"
 
-        fun newInstance(onSuccess: () -> Unit): LoginDialogFragment {
+        fun newInstance(
+            onSuccess: () -> Unit,
+            required: Boolean = false
+        ): LoginDialogFragment {
             return LoginDialogFragment().apply {
+                arguments = Bundle().apply { putBoolean(ARG_REQUIRED, required) }
                 setOnLoginSuccessListener(onSuccess)
+                setRequired(required)
             }
         }
     }

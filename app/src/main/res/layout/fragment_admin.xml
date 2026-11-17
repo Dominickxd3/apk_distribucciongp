@@ -10,28 +10,71 @@
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:paddingStart="16dp"
-        android:paddingTop="20dp"
-        android:paddingEnd="16dp"
-        android:paddingBottom="24dp">
+        android:orientation="vertical">
 
-        <TextView
-            android:layout_width="wrap_content"
+        <!-- ENCABEZADO CORPORATIVO UNIFICADO -->
+        <LinearLayout
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:fontFamily="sans-serif-black"
-            android:text="Gestión Corporativa y Diagnóstico"
-            android:textColor="@color/primary_petrol"
-            android:textSize="20sp" />
+            android:background="@drawable/bg_header_gradient"
+            android:elevation="4dp"
+            android:orientation="vertical"
+            android:paddingStart="20dp"
+            android:paddingTop="20dp"
+            android:paddingEnd="20dp"
+            android:paddingBottom="20dp">
 
-        <TextView
-            android:layout_width="wrap_content"
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <ImageView
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:background="@drawable/badge_status_neutral"
+                    android:backgroundTint="@color/primary_petrol_light"
+                    android:contentDescription="Administración"
+                    android:padding="8dp"
+                    android:src="@drawable/ic_more"
+                    app:tint="@color/white" />
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="12dp"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:fontFamily="sans-serif-black"
+                        android:text="Gestión Corporativa"
+                        android:textColor="@color/white"
+                        android:textSize="20sp" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:fontFamily="sans-serif"
+                        android:text="Seguridad, flota, persistencia y diagnóstico"
+                        android:textColor="#C0D3E5"
+                        android:textSize="11sp" />
+                </LinearLayout>
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- CONTENIDO ADMINISTRATIVO RESPONSIVE -->
+        <LinearLayout
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="2dp"
-            android:fontFamily="sans-serif"
-            android:text="Seguridad empresarial, asignación de flota, base de datos SQLite y auditoría del sistema"
-            android:textColor="@color/text_secondary"
-            android:textSize="12sp" />
+            android:orientation="vertical"
+            android:paddingStart="16dp"
+            android:paddingTop="12dp"
+            android:paddingEnd="16dp"
+            android:paddingBottom="24dp">
 
         <!-- 1. TARJETA DE AUTENTICACIÓN Y SESIÓN -->
         <com.google.android.material.card.MaterialCardView
@@ -157,7 +200,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:fontFamily="sans-serif-bold"
-                    android:text="Asignación de Vehículo y Hardware"
+                    android:text="Nombre del Dispositivo y Hardware"
                     android:textColor="@color/primary_petrol"
                     android:textSize="13sp" />
 
@@ -182,7 +225,7 @@
                         android:layout_height="wrap_content"
                         android:layout_marginTop="4dp"
                         android:fontFamily="sans-serif-medium"
-                        android:text="• Placa Camión: CAM-101"
+                        android:text="• Dispositivo / Camión: CAM-101"
                         android:textColor="@color/text_primary"
                         android:textSize="12sp" />
 
@@ -192,7 +235,7 @@
                         android:layout_height="wrap_content"
                         android:layout_marginTop="4dp"
                         android:fontFamily="sans-serif"
-                        android:text="• Conductor Asignado: Conductor de Ruta"
+                        android:text="• Operador: acceso con login"
                         android:textColor="@color/text_secondary"
                         android:textSize="12sp" />
 
@@ -213,7 +256,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="10dp"
-                    android:text="Modificar Asignación de Flota"
+                    android:text="Cambiar Nombre del Dispositivo"
                     app:icon="@drawable/ic_truck"
                     app:iconTint="@color/primary_petrol" />
             </LinearLayout>
@@ -246,7 +289,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="6dp"
                     android:fontFamily="sans-serif"
-                    android:text="Servidor central web de Grupo Pecuario aún no configurado. Los registros se preservan intactos en SQLite local y no se marcarán como sincronizados hasta confirmación del backend."
+                    android:text="Las posiciones se envían al servidor central con el token de tu sesión. Si no hay conexión, quedan guardadas en SQLite local y se reintentan automáticamente hasta que el servidor confirme su recepción."
                     android:textColor="@color/text_secondary"
                     android:textSize="11sp" />
 
@@ -433,6 +476,7 @@
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
+        </LinearLayout>
     </LinearLayout>
 </androidx.core.widget.NestedScrollView>
 

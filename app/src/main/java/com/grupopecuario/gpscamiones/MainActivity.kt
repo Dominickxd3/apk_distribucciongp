@@ -16,6 +16,9 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.fragment.app.Fragment
 import com.grupopecuario.gpscamiones.auth.AuthManager
 import com.grupopecuario.gpscamiones.databinding.ActivityMainBinding
@@ -94,9 +97,58 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
+        configurarVentanaEInsets()
         configurarNavegacion(savedInstanceState)
         solicitarPermisoNotificaciones()
         procesarIntentoAutoInicio(intent)
+        exigirSesionIniciada()
+    }
+
+    /**
+     * Verifica sesión al retomar la activity (ej. después de cerrar sesión desde Admin).
+     * Si no hay sesión válida, redirige al LoginActivity.
+     */
+    fun exigirSesionIniciada() {
+        if (AuthManager.getInstance(this).isUserLoggedIn) return
+        val intent = Intent(this, LoginActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+        }
+        startActivity(intent)
+        finish()
+    }
+
+    /** Refresca la pantalla visible después de un login correcto. */
+    fun sesionIniciada() {
+        refrescarPantallaActiva()
+    }
+
+    private fun configurarVentanaEInsets() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            window.statusBarColor = ContextCompat.getColor(this, R.color.primary_petrol_dark)
+            window.navigationBarColor = ContextCompat.getColor(this, R.color.bg_surface)
+        }
+
+        WindowCompat.getInsetsController(window, window.decorView).apply {
+            isAppearanceLightStatusBars = false // Iconos blancos en status bar azul petróleo oscuro
+            isAppearanceLightNavigationBars = true // Iconos oscuros en barra de navegación clara
+        }
+
+        ViewCompat.setOnApplyWindowInsetsListener(binding.rootLayout) { _, insets ->
+            val statusBar = insets.getInsets(WindowInsetsCompat.Type.statusBars())
+            val navBar = insets.getInsets(WindowInsetsCompat.Type.navigationBars())
+            val cutout = insets.getInsets(WindowInsetsCompat.Type.displayCutout())
+
+            val topInset = maxOf(statusBar.top, cutout.top)
+            val bottomInset = maxOf(navBar.bottom, cutout.bottom)
+
+            // Espaciado dinámico superior para no superponer la barra de estado o notch
+            binding.navHostContainer.setPadding(0, topInset, 0, 0)
+
+            // Espaciado dinámico inferior para no superponer la píldora de gestos de Android
+            binding.bottomNavigation.setPadding(0, 0, 0, bottomInset)
+
+            insets
+        }
     }
 
     private fun configurarNavegacion(savedInstanceState: Bundle?) {
@@ -150,11 +202,13 @@ class MainActivity : AppCompatActivity() {
     }
 
     fun abrirDialogoLogin() {
-        val dialog = LoginDialogFragment.newInstance {
-            refrescarPantallaActiva()
-            adminFragment.actualizarDatos()
-            Toast.makeText(this, "Autenticación exitosa", Toast.LENGTH_SHORT).show()
-        }
+        val dialog = LoginDialogFragment.newInstance(
+            onSuccess = {
+                refrescarPantallaActiva()
+                adminFragment.actualizarDatos()
+                Toast.makeText(this, "Autenticación exitosa", Toast.LENGTH_SHORT).show()
+            }
+        )
         dialog.show(supportFragmentManager, LoginDialogFragment.TAG)
     }
 

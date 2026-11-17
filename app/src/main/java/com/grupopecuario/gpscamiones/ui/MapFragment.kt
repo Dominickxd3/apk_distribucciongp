@@ -73,7 +73,7 @@ class MapFragment : Fragment() {
 
     private fun configurarInteracciones() {
         val config = ConfigManager.getInstance(requireContext())
-        binding.tvMapTitle.text = "Camión: ${config.placaVehiculo}"
+        binding.tvMapTitle.text = "Camión: ${config.nombreDispositivo}"
 
         // Botón FAB para recentrar
         binding.fabRecenter.setOnClickListener {

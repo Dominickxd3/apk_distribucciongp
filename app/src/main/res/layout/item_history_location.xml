@@ -1,106 +1,174 @@
 <?xml version="1.0" encoding="utf-8"?>
 <com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
-    xmlns:tools="http://schemas.android.com/tools"
     style="@style/Widget.GPSCamiones.Card"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_marginBottom="8dp">
+    android:layout_marginStart="12dp"
+    android:layout_marginEnd="12dp"
+    android:layout_marginBottom="6dp"
+    app:cardCornerRadius="10dp"
+    app:cardElevation="0dp"
+    app:strokeColor="@color/bg_card_stroke"
+    app:strokeWidth="1dp">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:padding="12dp">
+        android:orientation="horizontal"
+        android:paddingStart="0dp"
+        android:paddingTop="0dp"
+        android:paddingEnd="12dp"
+        android:paddingBottom="0dp">
 
+        <!-- Franja lateral de color (indica movimiento vs detenido) -->
+        <View
+            android:id="@+id/v_item_franja"
+            android:layout_width="4dp"
+            android:layout_height="match_parent"
+            android:background="@color/status_neutral" />
+
+        <!-- Contenido principal -->
         <LinearLayout
-            android:layout_width="match_parent"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:gravity="center_vertical"
-            android:orientation="horizontal">
+            android:layout_marginStart="10dp"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:paddingTop="9dp"
+            android:paddingBottom="9dp">
 
-            <TextView
-                android:id="@+id/tv_item_hora"
-                android:layout_width="0dp"
+            <!-- Fila 1: Hora + badges (GPS/Sync) -->
+            <LinearLayout
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:fontFamily="sans-serif-bold"
-                android:text="14:32:05 (Lima)"
-                android:textColor="@color/primary_petrol"
-                android:textSize="13sp" />
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
 
-            <!-- Badge Mock -->
-            <TextView
-                android:id="@+id/tv_item_mock"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:background="@drawable/badge_status_neutral"
-                android:fontFamily="sans-serif-medium"
-                android:paddingStart="6dp"
-                android:paddingTop="2dp"
-                android:paddingEnd="6dp"
-                android:paddingBottom="2dp"
-                android:text="GPS Real"
-                android:textColor="@color/status_neutral_text"
-                android:textSize="10sp" />
+                <!-- Icono de movimiento -->
+                <ImageView
+                    android:id="@+id/iv_item_icono_estado"
+                    android:layout_width="14dp"
+                    android:layout_height="14dp"
+                    android:contentDescription="Estado"
+                    android:src="@drawable/ic_pause"
+                    app:tint="@color/status_neutral" />
 
-            <!-- Badge Sync -->
-            <TextView
-                android:id="@+id/tv_item_sync"
-                android:layout_width="wrap_content"
+                <!-- Hora -->
+                <TextView
+                    android:id="@+id/tv_item_hora"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="5dp"
+                    android:fontFamily="sans-serif-medium"
+                    android:text="11:37:03"
+                    android:textColor="@color/primary_petrol"
+                    android:textSize="14sp" />
+
+                <!-- Lima label -->
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="4dp"
+                    android:fontFamily="sans-serif"
+                    android:text="(Lima)"
+                    android:textColor="@color/text_tertiary"
+                    android:textSize="11sp" />
+
+                <View
+                    android:layout_width="0dp"
+                    android:layout_height="1dp"
+                    android:layout_weight="1" />
+
+                <!-- Badge GPS Real / Mock -->
+                <TextView
+                    android:id="@+id/tv_item_mock"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:background="@drawable/badge_status_active"
+                    android:fontFamily="sans-serif-medium"
+                    android:paddingStart="7dp"
+                    android:paddingTop="2dp"
+                    android:paddingEnd="7dp"
+                    android:paddingBottom="2dp"
+                    android:text="GPS Real"
+                    android:textColor="@color/status_active_text"
+                    android:textSize="10sp" />
+
+                <!-- Badge Sync -->
+                <TextView
+                    android:id="@+id/tv_item_sync"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="4dp"
+                    android:background="@drawable/badge_status_warning"
+                    android:fontFamily="sans-serif-medium"
+                    android:paddingStart="7dp"
+                    android:paddingTop="2dp"
+                    android:paddingEnd="7dp"
+                    android:paddingBottom="2dp"
+                    android:text="Pendiente"
+                    android:textColor="@color/status_warning_text"
+                    android:textSize="10sp" />
+
+            </LinearLayout>
+
+            <!-- Fila 2: Lat / Lon con icono -->
+            <LinearLayout
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="6dp"
-                android:background="@drawable/badge_status_neutral"
-                android:fontFamily="sans-serif-medium"
-                android:paddingStart="6dp"
-                android:paddingTop="2dp"
-                android:paddingEnd="6dp"
-                android:paddingBottom="2dp"
-                android:text="Pendiente"
-                android:textColor="@color/status_warning_text"
-                android:textSize="10sp" />
+                android:layout_marginTop="5dp"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:id="@+id/tv_item_coords"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:ellipsize="end"
+                    android:fontFamily="monospace"
+                    android:maxLines="1"
+                    android:text="37.421998, -122.084000"
+                    android:textColor="@color/text_primary"
+                    android:textSize="12sp" />
+
+                <!-- Separador puntual -->
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
+                    android:layout_marginEnd="2dp"
+                    android:fontFamily="sans-serif"
+                    android:text="|"
+                    android:textColor="@color/bg_card_stroke"
+                    android:textSize="12sp" />
+
+                <!-- Velocidad -->
+                <TextView
+                    android:id="@+id/tv_item_velocidad"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:fontFamily="sans-serif-medium"
+                    android:text="0.0 km/h"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="11.5sp" />
+
+                <!-- Precisión -->
+                <TextView
+                    android:id="@+id/tv_item_precision"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
+                    android:fontFamily="sans-serif"
+                    android:text="±5.0 m"
+                    android:textColor="@color/text_tertiary"
+                    android:textSize="11sp" />
+
+            </LinearLayout>
+
         </LinearLayout>
 
-        <TextView
-            android:id="@+id/tv_item_coords"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
-            android:fontFamily="monospace"
-            android:text="Lat: -12.046374  Lon: -77.042793"
-            android:textColor="@color/text_primary"
-            android:textSize="12sp" />
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
-            android:orientation="horizontal">
-
-            <TextView
-                android:id="@+id/tv_item_velocidad"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:fontFamily="sans-serif"
-                android:text="Vel: 42.5 km/h"
-                android:textColor="@color/text_secondary"
-                android:textSize="11sp" />
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="  •  "
-                android:textColor="@color/text_tertiary" />
-
-            <TextView
-                android:id="@+id/tv_item_precision"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:fontFamily="sans-serif"
-                android:text="Precisión: ±3.8 m"
-                android:textColor="@color/text_secondary"
-                android:textSize="11sp" />
-        </LinearLayout>
     </LinearLayout>
-</com.google.android.material.card.MaterialCardView>
 
+</com.google.android.material.card.MaterialCardView>

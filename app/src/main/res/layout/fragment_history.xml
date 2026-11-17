@@ -7,113 +7,262 @@
     android:background="@color/bg_light"
     android:orientation="vertical">
 
-    <!-- Encabezado de Filtros de Historial -->
+    <!-- ═══════════════════════════════════════════════════════
+         1. ENCABEZADO CORPORATIVO
+         ═══════════════════════════════════════════════════════ -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:background="@color/bg_surface"
-        android:elevation="2dp"
+        android:background="@drawable/bg_header_gradient"
+        android:elevation="4dp"
         android:orientation="vertical"
-        android:padding="16dp">
+        android:paddingStart="16dp"
+        android:paddingTop="16dp"
+        android:paddingEnd="16dp"
+        android:paddingBottom="14dp">
 
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:fontFamily="sans-serif-black"
-            android:text="Historial de Telemetría GPS"
-            android:textColor="@color/primary_petrol"
-            android:textSize="18sp" />
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:fontFamily="sans-serif"
-            android:text="Consulta de posiciones registradas en SQLite y detección de saltos temporales"
-            android:textColor="@color/text_secondary"
-            android:textSize="11sp" />
-
-        <!-- Botones de Selección Rápida de Fecha -->
+        <!-- Título + badge día -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
             android:gravity="center_vertical"
             android:orientation="horizontal">
 
+            <ImageView
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:background="@drawable/badge_status_neutral"
+                android:backgroundTint="@color/primary_petrol_light"
+                android:contentDescription="Historial"
+                android:padding="7dp"
+                android:src="@drawable/ic_history"
+                app:tint="@color/white" />
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="10dp"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:fontFamily="sans-serif-black"
+                    android:text="Historial de Telemetría GPS"
+                    android:textColor="@color/white"
+                    android:textSize="17sp" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:fontFamily="sans-serif"
+                    android:text="Consulta de posiciones registradas en SQLite"
+                    android:textColor="#B0C8E0"
+                    android:textSize="11sp" />
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/tv_history_badge_day"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@drawable/badge_status_neutral"
+                android:backgroundTint="#1B3D5D"
+                android:fontFamily="sans-serif-medium"
+                android:paddingStart="8dp"
+                android:paddingTop="3dp"
+                android:paddingEnd="8dp"
+                android:paddingBottom="3dp"
+                android:text="HOY"
+                android:textColor="#D0E8F8"
+                android:textSize="11sp" />
+        </LinearLayout>
+
+        <!-- Filtros de fecha como botones segmentados -->
+        <com.google.android.material.button.MaterialButtonToggleGroup
+            android:id="@+id/toggle_group_filtros"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            app:selectionRequired="true"
+            app:singleSelection="true">
+
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btn_filter_today"
-                style="@style/Widget.Material3.Button.TonalButton"
+                style="@style/Widget.Material3.Button.OutlinedButton"
                 android:layout_width="0dp"
                 android:layout_height="38dp"
                 android:layout_weight="1"
-                android:insetTop="0dp"
-                android:insetBottom="0dp"
-                android:padding="0dp"
                 android:text="Hoy"
-                android:textSize="12sp" />
+                android:textColor="@color/white"
+                android:textSize="12sp"
+                app:strokeColor="#3A648A" />
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btn_filter_yesterday"
                 style="@style/Widget.Material3.Button.OutlinedButton"
                 android:layout_width="0dp"
                 android:layout_height="38dp"
-                android:layout_marginStart="6dp"
                 android:layout_weight="1"
-                android:insetTop="0dp"
-                android:insetBottom="0dp"
-                android:padding="0dp"
                 android:text="Ayer"
-                android:textSize="12sp" />
+                android:textColor="@color/white"
+                android:textSize="12sp"
+                app:strokeColor="#3A648A" />
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btn_filter_date_picker"
                 style="@style/Widget.Material3.Button.OutlinedButton"
                 android:layout_width="0dp"
                 android:layout_height="38dp"
-                android:layout_marginStart="6dp"
-                android:layout_weight="1.2"
-                android:insetTop="0dp"
-                android:insetBottom="0dp"
-                android:padding="0dp"
+                android:layout_weight="1"
+                android:drawableStart="@drawable/ic_calendar"
+                android:drawableTint="@color/white"
                 android:text="Fecha..."
+                android:textColor="@color/white"
                 android:textSize="12sp"
-                app:icon="@drawable/ic_calendar"
-                app:iconSize="14dp" />
-        </LinearLayout>
+                app:strokeColor="#3A648A" />
+        </com.google.android.material.button.MaterialButtonToggleGroup>
 
-        <!-- Resumen del día seleccionado -->
+    </LinearLayout>
+
+    <!-- ═══════════════════════════════════════════════════════
+         2. TIRA DE KPIs DE LA JORNADA
+         ═══════════════════════════════════════════════════════ -->
+    <com.google.android.material.card.MaterialCardView
+        style="@style/Widget.GPSCamiones.Card"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="12dp"
+        android:layout_marginTop="10dp"
+        android:layout_marginEnd="12dp"
+        android:layout_marginBottom="2dp"
+        app:cardCornerRadius="10dp"
+        app:cardElevation="0dp"
+        app:strokeColor="@color/bg_card_stroke"
+        app:strokeWidth="1dp">
+
+        <!-- Subtítulo con fecha consultada -->
         <LinearLayout
-            android:id="@+id/layout_history_summary"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            android:background="@drawable/badge_status_neutral"
-            android:gravity="center_vertical"
-            android:orientation="horizontal"
-            android:padding="10dp">
+            android:orientation="vertical"
+            android:paddingStart="12dp"
+            android:paddingTop="8dp"
+            android:paddingEnd="12dp"
+            android:paddingBottom="0dp">
 
             <TextView
                 android:id="@+id/tv_history_selected_date"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:fontFamily="sans-serif-bold"
-                android:text="Fecha: Hoy"
-                android:textColor="@color/primary_petrol"
-                android:textSize="12sp" />
-
-            <TextView
-                android:id="@+id/tv_history_points_count"
-                android:layout_width="wrap_content"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:fontFamily="sans-serif-medium"
-                android:text="0 registros encontrados"
+                android:text="Consultando fecha..."
                 android:textColor="@color/text_secondary"
-                android:textSize="11sp" />
-        </LinearLayout>
-    </LinearLayout>
+                android:textSize="11.5sp" />
 
-    <!-- Estado Vacío -->
+            <!-- KPIs en fila horizontal -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="52dp"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <!-- KPI 1: Total puntos -->
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:gravity="center"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:id="@+id/tv_kpi_total_puntos"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:fontFamily="sans-serif-black"
+                        android:text="0"
+                        android:textColor="@color/primary_petrol"
+                        android:textSize="18sp" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:fontFamily="sans-serif"
+                        android:text="Puntos GPS"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="10sp" />
+                </LinearLayout>
+
+                <View
+                    android:layout_width="1dp"
+                    android:layout_height="28dp"
+                    android:background="@color/divider" />
+
+                <!-- KPI 2: Rango horario -->
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1.4"
+                    android:gravity="center"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:id="@+id/tv_kpi_rango_horario"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:fontFamily="sans-serif-medium"
+                        android:maxLines="1"
+                        android:text="--:-- - --:--"
+                        android:textColor="@color/text_primary"
+                        android:textSize="13sp" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:fontFamily="sans-serif"
+                        android:text="Lapso (Hora Lima)"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="10sp" />
+                </LinearLayout>
+
+                <View
+                    android:layout_width="1dp"
+                    android:layout_height="28dp"
+                    android:background="@color/divider" />
+
+                <!-- KPI 3: Velocidad máxima -->
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:gravity="center"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:id="@+id/tv_kpi_vel_maxima"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:fontFamily="sans-serif-black"
+                        android:text="0.0 km/h"
+                        android:textColor="@color/status_active_text"
+                        android:textSize="13sp" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:fontFamily="sans-serif"
+                        android:text="Vel. Maxima"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="10sp" />
+                </LinearLayout>
+
+            </LinearLayout>
+        </LinearLayout>
+    </com.google.android.material.card.MaterialCardView>
+
+    <!-- ═══════════════════════════════════════════════════════
+         3. ESTADO VACÍO
+         ═══════════════════════════════════════════════════════ -->
     <LinearLayout
         android:id="@+id/layout_history_empty"
         android:layout_width="match_parent"
@@ -122,11 +271,12 @@
         android:gravity="center"
         android:orientation="vertical"
         android:padding="32dp"
-        android:visibility="gone">
+        android:visibility="gone"
+        tools:visibility="visible">
 
         <ImageView
-            android:layout_width="64dp"
-            android:layout_height="64dp"
+            android:layout_width="52dp"
+            android:layout_height="52dp"
             android:contentDescription="Sin registros"
             android:src="@drawable/ic_history"
             app:tint="@color/text_tertiary" />
@@ -136,7 +286,7 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="12dp"
             android:fontFamily="sans-serif-medium"
-            android:text="Sin registros para la fecha seleccionada"
+            android:text="Sin telemetria en esta fecha"
             android:textColor="@color/text_secondary"
             android:textSize="14sp" />
 
@@ -146,22 +296,22 @@
             android:layout_marginTop="4dp"
             android:fontFamily="sans-serif"
             android:gravity="center"
-            android:text="Verifica que el seguimiento GPS esté activo para capturar posiciones en ruta."
+            android:text="No se encontraron registros en SQLite para el dia seleccionado."
             android:textColor="@color/text_tertiary"
             android:textSize="12sp" />
     </LinearLayout>
 
-    <!-- Listado Recycler View -->
+    <!-- ═══════════════════════════════════════════════════════
+         4. LISTADO DE POSICIONES
+         ═══════════════════════════════════════════════════════ -->
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/rv_history"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
         android:clipToPadding="false"
-        android:paddingStart="16dp"
-        android:paddingTop="12dp"
-        android:paddingEnd="16dp"
-        android:paddingBottom="16dp" />
+        android:paddingTop="6dp"
+        android:paddingBottom="16dp"
+        tools:visibility="visible" />
 
 </LinearLayout>
-

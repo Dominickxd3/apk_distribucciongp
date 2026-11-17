@@ -114,7 +114,7 @@ class DashboardFragment : Fragment() {
 
         // Actualizar datos de configuración de vehículo en la cabecera
         val config = ConfigManager.getInstance(ctx)
-        binding.tvHeaderVehicleInfo.text = "Vehículo: ${config.placaVehiculo} • ${config.empresa}"
+        binding.tvHeaderVehicleInfo.text = "Dispositivo: ${config.nombreDispositivo} • ${config.empresa}"
 
         val authManager = AuthManager.getInstance(ctx)
         val currentSession = authManager.getCurrentSession()

@@ -17,6 +17,7 @@ class AuthManager private constructor(context: Context) {
         private const val KEY_ROLE = "auth_role"
         private const val KEY_TOKEN = "auth_token"
         private const val KEY_TIMESTAMP = "auth_login_timestamp"
+        private const val KEY_EXPIRES_AT = "auth_expires_at"
         private const val KEY_IS_LOCAL = "auth_is_local"
 
         @Volatile
@@ -83,7 +84,8 @@ class AuthManager private constructor(context: Context) {
             role = role,
             token = prefs.getString(KEY_TOKEN, null),
             loginTimestamp = prefs.getLong(KEY_TIMESTAMP, 0L),
-            isLocalSession = prefs.getBoolean(KEY_IS_LOCAL, true)
+            isLocalSession = prefs.getBoolean(KEY_IS_LOCAL, true),
+            expiresAtMs = prefs.getLong(KEY_EXPIRES_AT, 0L)
         )
     }
 
@@ -97,6 +99,7 @@ class AuthManager private constructor(context: Context) {
             .putString(KEY_ROLE, session.role.name)
             .putString(KEY_TOKEN, session.token)
             .putLong(KEY_TIMESTAMP, session.loginTimestamp)
+            .putLong(KEY_EXPIRES_AT, session.expiresAtMs)
             .putBoolean(KEY_IS_LOCAL, session.isLocalSession)
             .apply()
     }

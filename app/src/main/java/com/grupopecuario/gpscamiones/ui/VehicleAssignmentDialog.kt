@@ -32,24 +32,21 @@ class VehicleAssignmentDialog : DialogFragment() {
         super.onViewCreated(view, savedInstanceState)
 
         val config = ConfigManager.getInstance(requireContext())
-        binding.etPlate.setText(config.placaVehiculo)
-        binding.etDriver.setText(config.nombreConductor)
+        binding.etPlate.setText(config.nombreDispositivo)
 
         binding.btnCancelAssignment.setOnClickListener {
             dismiss()
         }
 
         binding.btnSaveAssignment.setOnClickListener {
-            val plate = binding.etPlate.text?.toString()?.trim().orEmpty()
-            val driver = binding.etDriver.text?.toString()?.trim().orEmpty()
+            val nombre = binding.etPlate.text?.toString()?.trim().orEmpty()
 
-            if (plate.isNotEmpty()) {
-                config.placaVehiculo = plate
-            }
-            if (driver.isNotEmpty()) {
-                config.nombreConductor = driver
+            if (nombre.isEmpty()) {
+                binding.tilPlate.error = "Escribe un nombre para identificar el camión."
+                return@setOnClickListener
             }
 
+            config.nombreDispositivo = nombre
             onSavedListener?.invoke()
             dismiss()
         }
@@ -78,4 +75,3 @@ class VehicleAssignmentDialog : DialogFragment() {
         }
     }
 }
-

@@ -68,26 +68,38 @@ class HistoryAdapter(
 
         fun bind(registro: RegistroUbicacion) {
             val context = itemView.context
-            val horaTexto = formatoHora.format(Date(registro.fechaGPS))
-            binding.tvItemHora.text = "$horaTexto (Lima)"
+            binding.tvItemHora.text = formatoHora.format(Date(registro.fechaGPS))
+
+            val velKmH = if (registro.velocidad != null) registro.velocidad * 3.6f else 0.0f
+            if (velKmH > 1.5f) {
+                // En movimiento — franja verde, icono navegación
+                binding.vItemFranja.setBackgroundColor(ContextCompat.getColor(context, R.color.status_active))
+                binding.ivItemIconoEstado.setImageResource(R.drawable.ic_navigation)
+                binding.ivItemIconoEstado.setColorFilter(ContextCompat.getColor(context, R.color.status_active))
+                binding.tvItemVelocidad.text = String.format(Locale.US, "%.1f km/h", velKmH)
+                binding.tvItemVelocidad.setTextColor(ContextCompat.getColor(context, R.color.status_active_text))
+            } else {
+                // Detenido — franja gris, icono pausa
+                binding.vItemFranja.setBackgroundColor(ContextCompat.getColor(context, R.color.status_neutral))
+                binding.ivItemIconoEstado.setImageResource(R.drawable.ic_pause)
+                binding.ivItemIconoEstado.setColorFilter(ContextCompat.getColor(context, R.color.status_neutral))
+                binding.tvItemVelocidad.text = "0.0 km/h"
+                binding.tvItemVelocidad.setTextColor(ContextCompat.getColor(context, R.color.text_secondary))
+            }
 
             binding.tvItemCoords.text = String.format(
                 Locale.US,
-                "Lat: %.6f   Lon: %.6f",
+                "%.6f, %.6f",
                 registro.latitud,
                 registro.longitud
             )
 
-            val velKmH = if (registro.velocidad != null) {
-                String.format(Locale.US, "%.1f km/h", registro.velocidad * 3.6f)
-            } else {
-                "0.0 km/h"
-            }
-            binding.tvItemVelocidad.text = "Vel: $velKmH"
-            binding.tvItemPrecision.text = String.format(Locale.US, "Precisión: ±%.1f m", registro.precision)
+            val precisionTexto = String.format(Locale.US, "±%.1f m", registro.precision)
+            binding.tvItemPrecision.text = precisionTexto
 
+            // Badge GPS Real / Mock
             if (registro.esSimulada) {
-                binding.tvItemMock.text = "Simulada (Mock)"
+                binding.tvItemMock.text = "Mock"
                 binding.tvItemMock.setTextColor(ContextCompat.getColor(context, R.color.status_danger_text))
                 binding.tvItemMock.setBackgroundResource(R.drawable.badge_status_danger)
             } else {
@@ -96,12 +108,13 @@ class HistoryAdapter(
                 binding.tvItemMock.setBackgroundResource(R.drawable.badge_status_active)
             }
 
+            // Badge Sync
             if (registro.sincronizado) {
-                binding.tvItemSync.text = "Sincronizado"
+                binding.tvItemSync.text = "Sync OK"
                 binding.tvItemSync.setTextColor(ContextCompat.getColor(context, R.color.status_active_text))
                 binding.tvItemSync.setBackgroundResource(R.drawable.badge_status_active)
             } else {
-                binding.tvItemSync.text = "Pendiente Sync"
+                binding.tvItemSync.text = "Pendiente"
                 binding.tvItemSync.setTextColor(ContextCompat.getColor(context, R.color.status_warning_text))
                 binding.tvItemSync.setBackgroundResource(R.drawable.badge_status_warning)
             }
@@ -112,8 +125,13 @@ class HistoryAdapter(
         RecyclerView.ViewHolder(binding.root) {
 
         fun bind(minutos: Long) {
-            binding.tvGapMessage.text = "⚠️ Salto de telemetría de $minutos min sin registros continuos"
+            val horas = minutos / 60
+            val mins = minutos % 60
+            binding.tvGapMessage.text = if (horas > 0) {
+                "Sin registros durante ${horas}h ${mins}min"
+            } else {
+                "Sin registros durante ${minutos} min"
+            }
         }
     }
 }
-

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Altura mínima de la pantalla de login para centrar en dispositivos pequeños -->
+    <dimen name="login_min_height">600dp</dimen>
+</resources>
+

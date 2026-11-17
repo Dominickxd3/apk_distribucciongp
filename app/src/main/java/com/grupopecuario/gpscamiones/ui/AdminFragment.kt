@@ -68,7 +68,8 @@ class AdminFragment : Fragment() {
                 .setPositiveButton("Cerrar Sesión") { _, _ ->
                     AuthManager.getInstance(requireContext()).logout()
                     actualizarDatos()
-                    Toast.makeText(requireContext(), "Sesión administrativa cerrada", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(requireContext(), "Sesión cerrada", Toast.LENGTH_SHORT).show()
+                    act?.exigirSesionIniciada()
                 }
                 .setNegativeButton("Cancelar", null)
                 .show()
@@ -86,7 +87,7 @@ class AdminFragment : Fragment() {
             } else {
                 AlertDialog.Builder(requireContext())
                     .setTitle("Acceso Restringido")
-                    .setMessage("Se requieren permisos de Administrador para reasignar la placa o conductor del camión. Por favor inicia sesión administrativa.")
+                    .setMessage("Se requieren permisos de Administrador para cambiar el nombre del dispositivo. Por favor inicia sesión.")
                     .setPositiveButton("Iniciar Sesión") { _, _ ->
                         act?.abrirDialogoLogin()
                     }
@@ -118,11 +119,11 @@ class AdminFragment : Fragment() {
         val session = AuthManager.getInstance(ctx).getCurrentSession()
         val config = ConfigManager.getInstance(ctx)
 
-        binding.tvAdminSessionUser.text = if (session.isAuthenticated) session.displayName else "Modo Conductor / Operador"
+        binding.tvAdminSessionUser.text = if (session.isAuthenticated) session.displayName else "Sin sesión"
         binding.tvAdminSessionRole.text = if (session.isAuthenticated) {
             "Conectado como ${session.role.displayName} (${session.username})"
         } else {
-            "Acceso operativo general (Sin sesión administrativa)"
+            "Inicia sesión con tu usuario del ERP"
         }
 
         binding.tvAdminRoleBadge.text = session.role.name
@@ -151,15 +152,15 @@ class AdminFragment : Fragment() {
 
         // 2. Hardware y Asignación
         binding.tvAdminDeviceId.text = "• ID Dispositivo: ${config.deviceId}"
-        binding.tvAdminTruckPlate.text = "• Placa Camión: ${config.placaVehiculo}"
-        binding.tvAdminDriverName.text = "• Conductor Asignado: ${config.nombreConductor}"
+        binding.tvAdminTruckPlate.text = "• Dispositivo / Camión: ${config.nombreDispositivo}"
+        binding.tvAdminDriverName.visibility = View.GONE
         binding.tvAdminHardwareModel.text = "• Dispositivo Móvil: ${config.modeloHardware}"
 
         // 3. Sincronización
         if (config.fechaUltimaSincronizacionMs > 0) {
             binding.tvAdminLastSyncDate.text = formatoLima.format(Date(config.fechaUltimaSincronizacionMs))
         } else {
-            binding.tvAdminLastSyncDate.text = "Pendiente (Servidor central web no conectado)"
+            binding.tvAdminLastSyncDate.text = "Aún sin sincronizaciones confirmadas"
         }
 
         // 4. Permisos de Android

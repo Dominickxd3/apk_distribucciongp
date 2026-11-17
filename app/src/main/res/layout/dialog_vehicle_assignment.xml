@@ -10,7 +10,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:fontFamily="sans-serif-black"
-        android:text="Asignación de Vehículo"
+        android:text="Nombre del Dispositivo"
         android:textColor="@color/primary_petrol"
         android:textSize="18sp" />
 
@@ -19,7 +19,7 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="2dp"
         android:fontFamily="sans-serif"
-        android:text="Modifica la identificación del camión y conductor asignado a este dispositivo móvil"
+        android:text="Este nombre identifica al camión que envía las posiciones. Usa letras, números, espacio o guion (máximo 15 caracteres)."
         android:textColor="@color/text_secondary"
         android:textSize="12sp" />
 
@@ -29,29 +29,16 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="16dp"
-        android:hint="Placa del Camión (ej. CAM-101)">
+        android:hint="Nombre del dispositivo (ej. CAMION 3)">
 
         <com.google.android.material.textfield.TextInputEditText
             android:id="@+id/et_plate"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:textAllCaps="true"
-            android:singleLine="true" />
-    </com.google.android.material.textfield.TextInputLayout>
-
-    <com.google.android.material.textfield.TextInputLayout
-        android:id="@+id/til_driver"
-        style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="12dp"
-        android:hint="Nombre del Conductor">
-
-        <com.google.android.material.textfield.TextInputEditText
-            android:id="@+id/et_driver"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:singleLine="true" />
+            android:inputType="textCapCharacters"
+            android:maxLength="15"
+            android:singleLine="true"
+            android:textAllCaps="true" />
     </com.google.android.material.textfield.TextInputLayout>
 
     <LinearLayout
@@ -74,8 +61,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginStart="8dp"
-            android:text="Guardar Asignación" />
+            android:text="Guardar Nombre" />
     </LinearLayout>
 
 </LinearLayout>
-
