@@ -96,7 +96,9 @@ class DashboardFragment : Fragment() {
         // Botón Detener Seguimiento (claramente disponible y con verificación de rol)
         binding.btnDetenerSeguimiento.setOnClickListener {
             val session = AuthManager.getInstance(requireContext()).getCurrentSession()
-            if (session.role.canControlTracking()) {
+            if (!session.isAuthenticated) {
+                act?.exigirSesionIniciada()
+            } else if (session.role.canControlTracking()) {
                 act?.confirmarYDetenerSeguimiento()
             } else {
                 // Si es un conductor o usuario sin permisos, solicitar autenticación de supervisor

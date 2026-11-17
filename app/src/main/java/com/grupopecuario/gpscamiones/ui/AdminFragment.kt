@@ -78,7 +78,9 @@ class AdminFragment : Fragment() {
         // Modificar Asignación de Vehículo (Protegido por Rol)
         binding.btnAdminEditAssignment.setOnClickListener {
             val session = AuthManager.getInstance(requireContext()).getCurrentSession()
-            if (session.role.canEditVehicleConfig()) {
+            if (!session.isAuthenticated) {
+                act?.exigirSesionIniciada()
+            } else if (session.role.canEditVehicleConfig()) {
                 val dialog = VehicleAssignmentDialog.newInstance {
                     actualizarDatos()
                     Toast.makeText(requireContext(), "Asignación actualizada", Toast.LENGTH_SHORT).show()
@@ -87,11 +89,8 @@ class AdminFragment : Fragment() {
             } else {
                 AlertDialog.Builder(requireContext())
                     .setTitle("Acceso Restringido")
-                    .setMessage("Se requieren permisos de Administrador para cambiar el nombre del dispositivo. Por favor inicia sesión.")
-                    .setPositiveButton("Iniciar Sesión") { _, _ ->
-                        act?.abrirDialogoLogin()
-                    }
-                    .setNegativeButton("Cancelar", null)
+                    .setMessage("Tu sesión está activa como ${session.role.displayName}. Solo un administrador puede cambiar la asignación del vehículo.")
+                    .setPositiveButton("Entendido", null)
                     .show()
             }
         }

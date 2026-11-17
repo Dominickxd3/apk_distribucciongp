@@ -391,10 +391,7 @@ class MainActivity : AppCompatActivity() {
         AlertDialog.Builder(this)
             .setTitle("Autorización Requerida")
             .setMessage("Para evitar interrupciones de telemetría no autorizadas por conductores o terceros, se requiere autorización de Supervisor o Administrador para detener el rastreo.")
-            .setPositiveButton("Ingresar Credenciales") { _, _ ->
-                abrirDialogoLogin()
-            }
-            .setNegativeButton("Cancelar", null)
+            .setPositiveButton("Entendido", null)
             .show()
     }
 
