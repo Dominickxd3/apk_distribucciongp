@@ -124,12 +124,12 @@ class MainActivity : AppCompatActivity() {
 
     private fun configurarVentanaEInsets() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            window.statusBarColor = ContextCompat.getColor(this, R.color.primary_petrol_dark)
+            window.statusBarColor = ContextCompat.getColor(this, R.color.bg_light)
             window.navigationBarColor = ContextCompat.getColor(this, R.color.bg_surface)
         }
 
         WindowCompat.getInsetsController(window, window.decorView).apply {
-            isAppearanceLightStatusBars = false // Iconos blancos en status bar azul petróleo oscuro
+            isAppearanceLightStatusBars = true // Iconos oscuros sobre fondo claro minimalista
             isAppearanceLightNavigationBars = true // Iconos oscuros en barra de navegación clara
         }
 
@@ -237,6 +237,18 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        val prefs = getSharedPreferences(GPSLocationService.PREFS, Context.MODE_PRIVATE)
+        if (prefs.getBoolean(GPSLocationService.KEY_ENABLED, false) &&
+            (!tienePermisoUbicacion() || !tienePermisoBackground() || !tienePermisoNotificaciones())
+        ) {
+            esperandoAjustesBackground = false
+            mostrarDialogoExplicativo(
+                "Revisa los permisos de seguimiento",
+                "En Ajustes, activa Ubicación precisa, Permitir todo el tiempo para reanudar después de reiniciar y las Notificaciones para ver los avisos del GPS.",
+                abrirAjustes = true
+            )
+            return
+        }
         if (esperandoAjustesBackground) {
             esperandoAjustesBackground = false
             activarSeguimientoDirecto()

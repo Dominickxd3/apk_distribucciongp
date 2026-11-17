@@ -8,6 +8,14 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Toast
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.*
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.colorResource
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import com.grupopecuario.gpscamiones.GPSDatabaseHelper
@@ -31,6 +39,7 @@ class DashboardFragment : Fragment() {
 
     private val executor = Executors.newSingleThreadExecutor()
     private var isExpandedDiagnostic = false
+    private val placa = mutableStateOf("")
 
     private val formatoLima = SimpleDateFormat("dd/MM/yyyy HH:mm:ss", Locale.forLanguageTag("es-PE")).apply {
         timeZone = TimeZone.getTimeZone("America/Lima")
@@ -47,6 +56,30 @@ class DashboardFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
+        binding.dashboardHeader.setViewCompositionStrategy(
+            ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed
+        )
+        binding.dashboardHeader.setContent {
+            MaterialTheme {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(20.dp),
+                    color = colorResource(R.color.primary_petrol_dark),
+                    contentColor = colorResource(R.color.white)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(20.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Text("GPSCamiones", style = MaterialTheme.typography.headlineSmall)
+                        Text(
+                            if (placa.value.isBlank()) "Sin vehículo asignado" else "Camión ${placa.value}",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
+                }
+            }
+        }
 
         configurarInteracciones()
         actualizarDatos()
@@ -82,11 +115,6 @@ class DashboardFragment : Fragment() {
             act?.navegarAMapa()
         }
 
-        // Botón Auth en Cabecera
-        binding.btnHeaderAuth.setOnClickListener {
-            act?.abrirDialogoLogin()
-        }
-
         // Copiar coordenadas al portapapeles
         binding.btnCopiarCoordenadas.setOnClickListener {
             val coords = binding.tvCoordenadas.text.toString()
@@ -110,17 +138,8 @@ class DashboardFragment : Fragment() {
 
     fun actualizarDatos() {
         val ctx = context ?: return
+        placa.value = ConfigManager.getInstance(ctx).placaVehiculo
         val act = activity as? MainActivity ?: return
-
-        // Actualizar datos de configuración de vehículo en la cabecera
-        val config = ConfigManager.getInstance(ctx)
-        binding.tvHeaderVehicleInfo.text = "Dispositivo: ${config.nombreDispositivo} • ${config.empresa}"
-
-        val authManager = AuthManager.getInstance(ctx)
-        val currentSession = authManager.getCurrentSession()
-        binding.btnHeaderAuth.setIconResource(
-            if (currentSession.isAuthenticated) R.drawable.ic_person else R.drawable.ic_lock
-        )
 
         executor.execute {
             try {
@@ -138,6 +157,7 @@ class DashboardFragment : Fragment() {
 
                 val estadoDetalle = prefs.getString(GPSLocationService.KEY_ESTADO_DETALLE, "") ?: ""
                 val ultimaUbicacionMs = prefs.getLong(GPSLocationService.KEY_ULTIMA_UBICACION_MS, 0L)
+                val ultimoIntervalo = prefs.getLong(GPSLocationService.KEY_ULTIMO_INTERVALO_SIN_GPS_MS, 0L)
 
                 val enMemoria = GPSLocationService.isServiceRunning
                 val tieneFino = act.tienePermisoUbicacion()
@@ -249,7 +269,15 @@ class DashboardFragment : Fragment() {
                     binding.tvDiagServicioMemoria.text = "• Servicio activo en memoria: ${if (enMemoria) "Sí (Corriendo)" else "No (Inactivo)"}"
                     binding.tvDiagSeguimientoHabilitado.text = "• Seguimiento habilitado (Config): ${if (habilitado) "Sí" else "No"}"
                     binding.tvDiagEstadoReportado.text = "• Estado reportado: $estadoServicio"
-                    binding.tvDiagDetalleReportado.text = "• Detalle del proveedor: $estadoDetalle"
+                    binding.tvDiagDetalleReportado.text = buildString {
+                        append("• Detalle del proveedor: $estadoDetalle")
+                        if (habilitado && segundosDesdeUltima >= 60) {
+                            append("\n• Sin nueva ubicación desde hace ${segundosDesdeUltima / 60} min")
+                        }
+                        if (ultimoIntervalo > 0) {
+                            append("\n• Último intervalo entre lecturas: ${ultimoIntervalo / 1000} s")
+                        }
+                    }
                     binding.tvDiagPermisoFino.text = "• Permiso ubicación precisa: ${if (tieneFino) "Concedido" else "DENEGADO"}"
                     binding.tvDiagPermisoBackground.text = "• Permiso segundo plano: ${if (tieneBackground) "Todo el tiempo (Habilitado)" else "Solo con app en pantalla"}"
                     binding.tvDiagPermisoNotificaciones.text = "• Permiso notificaciones: ${if (tieneNotif) "Concedido" else "No concedido"}"

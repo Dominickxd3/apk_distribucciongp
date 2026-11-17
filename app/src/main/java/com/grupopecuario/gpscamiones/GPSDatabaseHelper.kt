@@ -116,11 +116,11 @@ class GPSDatabaseHelper(context: Context) :
         val limiteFecha = System.currentTimeMillis() - RETENCION_DIAS * 24 * 60 * 60 * 1000
         writableDatabase.beginTransaction()
         try {
-            writableDatabase.delete(TABLA, "fecha_registro_utc < ?", arrayOf(limiteFecha.toString()))
+            writableDatabase.delete(TABLA, "sincronizado = 1 AND fecha_registro_utc < ?", arrayOf(limiteFecha.toString()))
             writableDatabase.execSQL(
                 """
                 DELETE FROM $TABLA
-                WHERE rowid IN (
+                WHERE sincronizado = 1 AND rowid IN (
                     SELECT rowid FROM $TABLA
                     ORDER BY fecha_gps_utc DESC, rowid DESC
                     LIMIT -1 OFFSET $MAXIMO_REGISTROS

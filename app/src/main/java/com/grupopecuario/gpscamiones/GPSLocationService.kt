@@ -36,6 +36,7 @@ class GPSLocationService : Service() {
         const val KEY_ESTADO_DETALLE = "estado_detalle"
         const val KEY_ULTIMO_CAMBIO_ESTADO_MS = "ultimo_cambio_estado_ms"
         const val KEY_ULTIMA_UBICACION_MS = "ultima_ubicacion_ms"
+        const val KEY_ULTIMO_INTERVALO_SIN_GPS_MS = "ultimo_intervalo_sin_gps_ms"
 
         // Estados operativos del seguimiento
         const val ESTADO_DETENIDO = "DETENIDO"
@@ -83,6 +84,11 @@ class GPSLocationService : Service() {
             if (locations.isEmpty()) return
 
             val ahora = System.currentTimeMillis()
+            val prefs = getSharedPreferences(PREFS, MODE_PRIVATE)
+            val anterior = prefs.getLong(KEY_ULTIMA_UBICACION_MS, 0L)
+            if (anterior > 0 && ahora - anterior >= 60_000L) {
+                prefs.edit().putLong(KEY_ULTIMO_INTERVALO_SIN_GPS_MS, ahora - anterior).apply()
+            }
             ultimaUbicacionRecibidaMs = ahora
 
             val ultima = locations.last()
@@ -248,6 +254,7 @@ class GPSLocationService : Service() {
         )
             .setMinUpdateIntervalMillis(5000L)
             .setMaxUpdateDelayMillis(0L)
+            .setMaxUpdateAgeMillis(0L)
             .build()
 
         try {
