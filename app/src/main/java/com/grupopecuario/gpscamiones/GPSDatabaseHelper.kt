@@ -20,7 +20,9 @@ class GPSDatabaseHelper(context: Context) :
     companion object {
         private const val TABLA = "ubicaciones"
         private const val TABLA_EVENTOS = "eventos"
-        private const val RETENCION_DIAS = 30L
+        // Solo se borra lo que la web ya confirmó; se conserva 3 días como respaldo.
+        // Lo no enviado nunca se borra, aunque pasen días sin señal.
+        private const val RETENCION_DIAS = 3L
         private const val MAXIMO_REGISTROS = 100_000
         private const val INTERVALO_LIMPIEZA = 100
         private val insercionesDesdeLimpieza = AtomicInteger(0)
