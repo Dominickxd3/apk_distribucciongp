@@ -7,6 +7,8 @@ import java.util.UUID
 
 class ConfigManager private constructor(context: Context) {
 
+    private val appContext: Context = context.applicationContext
+
     companion object {
         private const val PREFS_CONFIG = "gps_camiones_device_config"
         private const val KEY_DEVICE_ID = "cfg_device_id"
@@ -17,6 +19,9 @@ class ConfigManager private constructor(context: Context) {
         private const val KEY_SYNC_URL = "cfg_sync_url"
         private const val KEY_ULTIMA_SYNC = "cfg_ultima_sync_ms"
         private const val KEY_INTERVALO_GPS = "cfg_intervalo_gps_s"
+        private const val KEY_WEB_UNIT_ID = "cfg_web_provider_unit_id"
+        private const val KEY_WEB_PLACA = "cfg_web_placa"
+        private const val KEY_WEB_NOMBRE = "cfg_web_nombre_vehiculo"
 
         @Volatile
         private var instance: ConfigManager? = null
@@ -50,8 +55,9 @@ class ConfigManager private constructor(context: Context) {
      * y el backend solo acepta letras, números, espacio y guion.
      */
     var nombreDispositivo: String
-        get() = prefs.getString(KEY_DEVICE_NAME, NOMBRE_POR_DEFECTO)
-            ?: NOMBRE_POR_DEFECTO
+        get() = placaAsignadaWeb.ifBlank {
+            prefs.getString(KEY_DEVICE_NAME, NOMBRE_POR_DEFECTO) ?: NOMBRE_POR_DEFECTO
+        }
         set(value) = prefs.edit()
             .putString(KEY_DEVICE_NAME, normalizarNombreDispositivo(value))
             .apply()
@@ -66,10 +72,46 @@ class ConfigManager private constructor(context: Context) {
      */
     val providerUnitId: Int
         get() {
+            val asignado = prefs.getInt(KEY_WEB_UNIT_ID, 0)
+            if (asignado > 0) return asignado
             val crc = java.util.zip.CRC32()
             crc.update(nombreDispositivo.toByteArray(Charsets.UTF_8))
             return 900_000_000 + (crc.value % 99_999_999L).toInt()
         }
+
+    /** true cuando la web administrable asignó un camión a este celular. */
+    val asignadoDesdeWeb: Boolean
+        get() = prefs.getInt(KEY_WEB_UNIT_ID, 0) > 0
+
+    val placaAsignadaWeb: String
+        get() = prefs.getString(KEY_WEB_PLACA, "") ?: ""
+
+    val nombreVehiculoWeb: String
+        get() = prefs.getString(KEY_WEB_NOMBRE, "") ?: ""
+
+    /**
+     * Guarda (o borra con 0) el camión que la web asignó. Tiene prioridad sobre
+     * el nombre escrito a mano en el celular.
+     */
+    fun guardarAsignacionWeb(providerUnitId: Int, placa: String, nombre: String) {
+        val asignado = providerUnitId > 0
+        prefs.edit()
+            .putInt(KEY_WEB_UNIT_ID, if (asignado) providerUnitId else 0)
+            .putString(KEY_WEB_PLACA, if (asignado) placa.trim().uppercase().take(15) else "")
+            .putString(KEY_WEB_NOMBRE, if (asignado) nombre.trim() else "")
+            .apply()
+    }
+
+    /**
+     * Identificador con el que la web reconoce este celular (ANDROID_ID). Es el
+     * mismo que se envía en cada lote de posiciones y el que se muestra en
+     * Administración para registrarlo y asignarle un camión.
+     */
+    val androidId: String
+        get() = android.provider.Settings.Secure.getString(
+            appContext.contentResolver,
+            android.provider.Settings.Secure.ANDROID_ID
+        ) ?: deviceId
 
     var placaVehiculo: String
         get() = nombreDispositivo

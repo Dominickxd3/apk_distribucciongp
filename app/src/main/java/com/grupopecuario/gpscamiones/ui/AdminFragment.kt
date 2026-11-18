@@ -19,6 +19,7 @@ import com.grupopecuario.gpscamiones.auth.AuthManager
 import com.grupopecuario.gpscamiones.auth.Role
 import com.grupopecuario.gpscamiones.config.ConfigManager
 import com.grupopecuario.gpscamiones.databinding.FragmentAdminBinding
+import com.grupopecuario.gpscamiones.operacion.OperacionRepository
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -50,6 +51,24 @@ class AdminFragment : Fragment() {
 
         configurarInteracciones()
         actualizarDatos()
+        refrescarAsignacion(mostrarAviso = false)
+    }
+
+    /** Consulta a la web qué camión, ruta y geocercas tiene este celular. */
+    private fun refrescarAsignacion(mostrarAviso: Boolean) {
+        val ctx = context ?: return
+        executor.execute {
+            val ok = OperacionRepository.getInstance(ctx).refrescar()
+            activity?.runOnUiThread {
+                if (_binding == null) return@runOnUiThread
+                actualizarDatos()
+                if (mostrarAviso) {
+                    val msg = if (ok) "Asignación actualizada desde la web"
+                    else OperacionRepository.getInstance(ctx).ultimoError.ifBlank { "No se pudo consultar la web" }
+                    Toast.makeText(ctx, msg, Toast.LENGTH_LONG).show()
+                }
+            }
+        }
     }
 
     private fun configurarInteracciones() {
@@ -78,8 +97,22 @@ class AdminFragment : Fragment() {
         // Modificar Asignación de Vehículo (Protegido por Rol)
         binding.btnAdminEditAssignment.setOnClickListener {
             val session = AuthManager.getInstance(requireContext()).getCurrentSession()
+            val config = ConfigManager.getInstance(requireContext())
             if (!session.isAuthenticated) {
                 act?.exigirSesionIniciada()
+            } else if (config.asignadoDesdeWeb) {
+                AlertDialog.Builder(requireContext())
+                    .setTitle("Asignado desde la web")
+                    .setMessage(
+                        "Este celular está asignado al camión ${config.placaAsignadaWeb}" +
+                            (config.nombreVehiculoWeb.takeIf { it.isNotBlank() && it != config.placaAsignadaWeb }
+                                ?.let { " ($it)" } ?: "") +
+                            " desde la web administrable.\n\nPara cambiarlo, modifica la asignación en la web; " +
+                            "el celular la tomará al tener señal."
+                    )
+                    .setPositiveButton("Actualizar ahora") { _, _ -> refrescarAsignacion(mostrarAviso = true) }
+                    .setNegativeButton("Cerrar", null)
+                    .show()
             } else if (session.role.canEditVehicleConfig()) {
                 val dialog = VehicleAssignmentDialog.newInstance {
                     actualizarDatos()
@@ -150,9 +183,21 @@ class AdminFragment : Fragment() {
         }
 
         // 2. Hardware y Asignación
-        binding.tvAdminDeviceId.text = "• ID Dispositivo: ${config.deviceId}"
-        binding.tvAdminTruckPlate.text = "• Dispositivo / Camión: ${config.nombreDispositivo}"
-        binding.tvAdminDriverName.visibility = View.GONE
+        binding.tvAdminDeviceId.text = "• Código del celular (registrar en la web): ${config.androidId}"
+        binding.tvAdminTruckPlate.text = if (config.asignadoDesdeWeb) {
+            "• Camión asignado por la web: ${config.placaAsignadaWeb}"
+        } else {
+            "• Camión (manual, sin asignar en la web): ${config.nombreDispositivo}"
+        }
+        val operacion = OperacionRepository.getInstance(ctx)
+        val cfg = operacion.actual()
+        binding.tvAdminDriverName.visibility = View.VISIBLE
+        binding.tvAdminDriverName.text = buildString {
+            append("• Ruta: ${cfg.ruta?.let { "${it.nombre} (${it.paradas.size} paradas)" } ?: "sin ruta asignada"}")
+            append("\n• Geocercas recibidas: ${cfg.geocercas.size}")
+            if (cfg.descargadaMs > 0) append("\n• Última consulta a la web: ${formatoLima.format(Date(cfg.descargadaMs))}")
+            operacion.ultimoError.takeIf { it.isNotBlank() }?.let { append("\n• Aviso: $it") }
+        }
         binding.tvAdminHardwareModel.text = "• Dispositivo Móvil: ${config.modeloHardware}"
 
         // 3. Sincronización

@@ -12,6 +12,12 @@ import android.os.Looper
 import android.provider.Settings
 import android.util.Log
 import android.widget.Toast
+import androidx.activity.result.IntentSenderRequest
+import com.google.android.gms.common.api.ResolvableApiException
+import com.google.android.gms.location.LocationRequest
+import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.LocationSettingsRequest
+import com.google.android.gms.location.Priority
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
@@ -52,6 +58,13 @@ class MainActivity : AppCompatActivity() {
     }
 
     // Contrato para permisos de ubicación en primer plano
+    private var avisoUbicacionMostrado = false
+    private val ajustesUbicacion = registerForActivityResult(
+        ActivityResultContracts.StartIntentSenderForResult()
+    ) {
+        refrescarPantallaActiva()
+    }
+
     private val permisosGPS = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { resultados ->
@@ -252,6 +265,10 @@ class MainActivity : AppCompatActivity() {
         if (esperandoAjustesBackground) {
             esperandoAjustesBackground = false
             activarSeguimientoDirecto()
+        } else if (GPSLocationService.ubicacionActivada(this)) {
+            avisoUbicacionMostrado = false
+        } else if (prefs.getBoolean(GPSLocationService.KEY_ENABLED, false) && !avisoUbicacionMostrado) {
+            solicitarActivarUbicacion()
         }
     }
 
@@ -307,7 +324,11 @@ class MainActivity : AppCompatActivity() {
     // Flujo de inicio de seguimiento
     fun solicitarInicioSeguimiento() {
         if (tienePermisoUbicacion()) {
-            evaluarPermisoSegundoPlanoEIniciar()
+            if (GPSLocationService.isServiceRunning && !GPSLocationService.ubicacionActivada(this)) {
+                solicitarActivarUbicacion()
+            } else {
+                evaluarPermisoSegundoPlanoEIniciar()
+            }
         } else {
             permisosGPS.launch(
                 arrayOf(
@@ -347,6 +368,28 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun solicitarActivarUbicacion() {
+        avisoUbicacionMostrado = true
+        val solicitud = LocationSettingsRequest.Builder()
+            .addLocationRequest(LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 10000L).build())
+            .build()
+        LocationServices.getSettingsClient(this).checkLocationSettings(solicitud)
+            .addOnFailureListener(this) { error ->
+                if (GPSLocationService.ubicacionActivada(this)) return@addOnFailureListener
+                if (error is ResolvableApiException) {
+                    ajustesUbicacion.launch(IntentSenderRequest.Builder(error.resolution).build())
+                } else {
+                    AlertDialog.Builder(this)
+                        .setTitle(GPSLocationService.MENSAJE_UBICACION_DESACTIVADA)
+                        .setPositiveButton("Abrir ajustes") { _, _ ->
+                            startActivity(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS))
+                        }
+                        .setNegativeButton("Cancelar", null)
+                        .show()
+                }
+            }
+    }
+
     private fun activarSeguimientoDirecto() {
         val prefs = getSharedPreferences(GPSLocationService.PREFS, Context.MODE_PRIVATE)
         prefs.edit()
@@ -361,7 +404,9 @@ class MainActivity : AppCompatActivity() {
                 action = GPSLocationService.ACTION_START
             }
             ContextCompat.startForegroundService(this, intent)
-            Toast.makeText(this, "Servicio GPS iniciado en primer plano", Toast.LENGTH_SHORT).show()
+            if (!GPSLocationService.ubicacionActivada(this)) {
+                solicitarActivarUbicacion()
+            }
         } catch (error: Exception) {
             Log.e("GPSCamiones", "Error al iniciar Foreground Service", error)
             prefs.edit()

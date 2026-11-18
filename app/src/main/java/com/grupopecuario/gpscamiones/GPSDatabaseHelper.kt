@@ -14,11 +14,12 @@ class GPSDatabaseHelper(context: Context) :
         context.applicationContext,
         "gps_camiones.db",
         null,
-        2
+        3
     ) {
 
     companion object {
         private const val TABLA = "ubicaciones"
+        private const val TABLA_EVENTOS = "eventos"
         private const val RETENCION_DIAS = 30L
         private const val MAXIMO_REGISTROS = 100_000
         private const val INTERVALO_LIMPIEZA = 100
@@ -54,11 +55,15 @@ class GPSDatabaseHelper(context: Context) :
                 fecha_registro_utc INTEGER NOT NULL,
                 velocidad_m_s REAL,
                 es_simulada INTEGER NOT NULL,
-                sincronizado INTEGER NOT NULL DEFAULT 0
+                sincronizado INTEGER NOT NULL DEFAULT 0,
+                provider_unit_id INTEGER,
+                placa TEXT,
+                sin_conexion INTEGER NOT NULL DEFAULT 0
             )
             """.trimIndent()
         )
         crearIndices(db)
+        crearTablaEventos(db)
     }
 
     // No eliminar ni modificar registros existentes
@@ -70,6 +75,121 @@ class GPSDatabaseHelper(context: Context) :
         if (oldVersion < 2) {
             crearIndices(db)
         }
+        if (oldVersion < 3) {
+            // Las posiciones antiguas quedan sin camión (NULL) y se envían con el actual
+            db.execSQL("ALTER TABLE $TABLA ADD COLUMN provider_unit_id INTEGER")
+            db.execSQL("ALTER TABLE $TABLA ADD COLUMN placa TEXT")
+            db.execSQL("ALTER TABLE $TABLA ADD COLUMN sin_conexion INTEGER NOT NULL DEFAULT 0")
+            crearTablaEventos(db)
+        }
+    }
+
+    /**
+     * Eventos operativos (inicio/fin de parada, entrada/salida de geocerca).
+     * Igual que las posiciones, se guardan primero aquí y se suben cuando hay señal.
+     */
+    private fun crearTablaEventos(db: SQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS $TABLA_EVENTOS (
+                id TEXT PRIMARY KEY,
+                tipo TEXT NOT NULL,
+                fecha_utc INTEGER NOT NULL,
+                latitud REAL NOT NULL,
+                longitud REAL NOT NULL,
+                tipo_parada TEXT,
+                datos_json TEXT NOT NULL,
+                provider_unit_id INTEGER NOT NULL,
+                placa TEXT NOT NULL,
+                sin_conexion INTEGER NOT NULL DEFAULT 0,
+                sincronizado INTEGER NOT NULL DEFAULT 0
+            )
+            """.trimIndent()
+        )
+        db.execSQL("CREATE INDEX IF NOT EXISTS idx_eventos_sync ON $TABLA_EVENTOS(sincronizado, fecha_utc)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS idx_eventos_fecha ON $TABLA_EVENTOS(fecha_utc DESC)")
+    }
+
+    fun guardarEvento(evento: RegistroEvento) {
+        val valores = ContentValues().apply {
+            put("id", evento.id)
+            put("tipo", evento.tipo)
+            put("fecha_utc", evento.fechaUtc)
+            put("latitud", evento.latitud)
+            put("longitud", evento.longitud)
+            put("tipo_parada", evento.tipoParada)
+            put("datos_json", evento.datosJson)
+            put("provider_unit_id", evento.providerUnitId)
+            put("placa", evento.placa)
+            put("sin_conexion", if (evento.sinConexion) 1 else 0)
+            put("sincronizado", 0)
+        }
+        writableDatabase.insertWithOnConflict(TABLA_EVENTOS, null, valores, SQLiteDatabase.CONFLICT_IGNORE)
+    }
+
+    fun obtenerEventosPendientes(limite: Int = 100): List<RegistroEvento> {
+        val lista = mutableListOf<RegistroEvento>()
+        readableDatabase.query(
+            TABLA_EVENTOS,
+            arrayOf("id", "tipo", "fecha_utc", "latitud", "longitud", "tipo_parada", "datos_json", "provider_unit_id", "placa", "sin_conexion"),
+            "sincronizado = 0", null, null, null,
+            "fecha_utc ASC, rowid ASC",
+            limite.coerceIn(1, 200).toString()
+        ).use { c ->
+            while (c.moveToNext()) {
+                lista += RegistroEvento(
+                    id = c.getString(0),
+                    tipo = c.getString(1),
+                    fechaUtc = c.getLong(2),
+                    latitud = c.getDouble(3),
+                    longitud = c.getDouble(4),
+                    tipoParada = if (c.isNull(5)) null else c.getString(5),
+                    datosJson = c.getString(6),
+                    providerUnitId = c.getInt(7),
+                    placa = c.getString(8),
+                    sinConexion = c.getInt(9) == 1
+                )
+            }
+        }
+        return lista
+    }
+
+    fun marcarEventosSincronizados(ids: List<String>) {
+        if (ids.isEmpty()) return
+        writableDatabase.beginTransaction()
+        try {
+            ids.chunked(100).forEach { lote ->
+                val placeholders = lote.joinToString(",") { "?" }
+                writableDatabase.execSQL(
+                    "UPDATE $TABLA_EVENTOS SET sincronizado = 1 WHERE id IN ($placeholders)",
+                    lote.toTypedArray()
+                )
+            }
+            writableDatabase.setTransactionSuccessful()
+        } finally {
+            writableDatabase.endTransaction()
+        }
+    }
+
+    fun contarEventosPendientes(): Int =
+        readableDatabase.rawQuery("SELECT COUNT(*) FROM $TABLA_EVENTOS WHERE sincronizado = 0", null).use { c ->
+            if (c.moveToFirst()) c.getInt(0) else 0
+        }
+
+    /** Paradas finalizadas desde [desdeUtc], agrupadas por tipo (POSIBLE_ENTREGA, TRAFICO...). */
+    fun contarParadasPorTipo(desdeUtc: Long): Map<String, Int> {
+        val resultado = mutableMapOf<String, Int>()
+        readableDatabase.rawQuery(
+            """
+            SELECT tipo_parada, COUNT(*) FROM $TABLA_EVENTOS
+            WHERE tipo = 'STOP_END' AND fecha_utc >= ? AND tipo_parada IS NOT NULL
+            GROUP BY tipo_parada
+            """.trimIndent(),
+            arrayOf(desdeUtc.toString())
+        ).use { c ->
+            while (c.moveToNext()) resultado[c.getString(0)] = c.getInt(1)
+        }
+        return resultado
     }
 
     private fun crearIndices(db: SQLiteDatabase) {
@@ -78,9 +198,19 @@ class GPSDatabaseHelper(context: Context) :
     }
 
     // Guardar una nueva ubicación GPS
-    fun guardarUbicacion(location: Location): Long {
+    fun guardarUbicacion(
+        location: Location,
+        providerUnitId: Int? = null,
+        placa: String? = null,
+        sinConexion: Boolean = false
+    ): Long {
         val valores = ContentValues().apply {
             put("id", UUID.randomUUID().toString())
+            // Camión al que pertenecía el celular al momento de la lectura: si la web
+            // reasigna el celular mientras estaba sin señal, no se mezclan recorridos.
+            if (providerUnitId != null) put("provider_unit_id", providerUnitId) else putNull("provider_unit_id")
+            if (placa != null) put("placa", placa) else putNull("placa")
+            put("sin_conexion", if (sinConexion) 1 else 0)
             put("latitud", location.latitude)
             put("longitud", location.longitude)
             put("precision_m", location.accuracy)
@@ -117,6 +247,7 @@ class GPSDatabaseHelper(context: Context) :
         writableDatabase.beginTransaction()
         try {
             writableDatabase.delete(TABLA, "sincronizado = 1 AND fecha_registro_utc < ?", arrayOf(limiteFecha.toString()))
+            writableDatabase.delete(TABLA_EVENTOS, "sincronizado = 1 AND fecha_utc < ?", arrayOf(limiteFecha.toString()))
             writableDatabase.execSQL(
                 """
                 DELETE FROM $TABLA
@@ -163,7 +294,7 @@ class GPSDatabaseHelper(context: Context) :
         val lista = mutableListOf<RegistroUbicacion>()
         readableDatabase.query(
             TABLA,
-            arrayOf("id", "latitud", "longitud", "precision_m", "fecha_gps_utc", "fecha_registro_utc", "velocidad_m_s", "es_simulada", "sincronizado"),
+            arrayOf("id", "latitud", "longitud", "precision_m", "fecha_gps_utc", "fecha_registro_utc", "velocidad_m_s", "es_simulada", "sincronizado", "provider_unit_id", "placa", "sin_conexion"),
             "sincronizado = 0",
             null,
             null,
@@ -182,7 +313,10 @@ class GPSDatabaseHelper(context: Context) :
                         fechaRegistro = cursor.getLong(5),
                         velocidad = if (cursor.isNull(6)) null else cursor.getFloat(6),
                         esSimulada = cursor.getInt(7) == 1,
-                        sincronizado = cursor.getInt(8) == 1
+                        sincronizado = cursor.getInt(8) == 1,
+                        providerUnitId = if (cursor.isNull(9)) null else cursor.getInt(9),
+                        placa = if (cursor.isNull(10)) null else cursor.getString(10),
+                        sinConexion = cursor.getInt(11) == 1
                     )
                 )
             }
@@ -389,7 +523,27 @@ data class RegistroUbicacion(
     val fechaRegistro: Long,
     val velocidad: Float?,
     val esSimulada: Boolean,
-    val sincronizado: Boolean
+    val sincronizado: Boolean,
+    val providerUnitId: Int? = null,
+    val placa: String? = null,
+    val sinConexion: Boolean = false
+)
+
+// Evento operativo pendiente de subir a la web (parada o geocerca)
+data class RegistroEvento(
+    val id: String,
+    /** STOP_START, STOP_END, GEOFENCE_ENTER, GEOFENCE_EXIT */
+    val tipo: String,
+    val fechaUtc: Long,
+    val latitud: Double,
+    val longitud: Double,
+    /** POSIBLE_ENTREGA, TRAFICO, NO_PROGRAMADA, BASE (solo en STOP_END) */
+    val tipoParada: String?,
+    /** Campos adicionales en JSON, se reenvían tal cual a la web */
+    val datosJson: String,
+    val providerUnitId: Int,
+    val placa: String,
+    val sinConexion: Boolean
 )
 
 // Resumen estadístico del almacenamiento SQLite

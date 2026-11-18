@@ -14,6 +14,10 @@ import com.grupopecuario.gpscamiones.RegistroUbicacion
 import com.grupopecuario.gpscamiones.UltimaUbicacion
 import com.grupopecuario.gpscamiones.config.ConfigManager
 import com.grupopecuario.gpscamiones.databinding.FragmentMapBinding
+import com.grupopecuario.gpscamiones.operacion.Forma
+import com.grupopecuario.gpscamiones.operacion.OperacionRepository
+import com.grupopecuario.gpscamiones.operacion.TipoGeocerca
+import org.maplibre.android.annotations.Annotation
 import org.maplibre.android.annotations.Marker
 import org.maplibre.android.annotations.MarkerOptions
 import org.maplibre.android.annotations.Polygon
@@ -44,6 +48,7 @@ class MapFragment : Fragment() {
     private var markerActual: Marker? = null
     private var circuloPrecision: Polygon? = null
     private var lineaTrayectoria: Polyline? = null
+    private val anotacionesOperacion = mutableListOf<Annotation>()
 
     // Control de seguimiento de cámara
     private var isFollowingUser: Boolean = true
@@ -118,6 +123,7 @@ class MapFragment : Fragment() {
             map.setStyle(Style.Builder().fromUri(styleUrl)) { style ->
                 Log.i("GPSCamiones", "Estilo de mapa cargado exitosamente")
                 binding.cardMapOfflineWarning.visibility = View.GONE
+                dibujarGeocercasYRuta()
                 actualizarMapaConDatosSQLite()
             }
 
@@ -278,6 +284,46 @@ class MapFragment : Fragment() {
                     .width(4.5f)
             )
         }
+    }
+
+    /** Dibuja las geocercas de la web y las paradas de la ruta asignada. */
+    private fun dibujarGeocercasYRuta() {
+        val ctx = context ?: return
+        val map = mapLibreMap ?: return
+        val operacion = OperacionRepository.getInstance(ctx)
+        val cfg = operacion.actual()
+        val visitadas = operacion.paradasVisitadas()
+
+        anotacionesOperacion.forEach { map.removeAnnotation(it) }
+        anotacionesOperacion.clear()
+
+        for (g in cfg.geocercasEfectivas) {
+            val (relleno, borde) = when {
+                g.paradaRutaId != null && g.paradaRutaId in visitadas ->
+                    Color.argb(40, 22, 163, 74) to Color.argb(160, 22, 163, 74)
+                g.tipo == TipoGeocerca.BASE -> Color.argb(40, 37, 99, 235) to Color.argb(160, 37, 99, 235)
+                g.tipo == TipoGeocerca.RESTRINGIDA -> Color.argb(40, 220, 38, 38) to Color.argb(160, 220, 38, 38)
+                g.esPuntoDeEntrega -> Color.argb(40, 217, 119, 6) to Color.argb(160, 217, 119, 6)
+                else -> Color.argb(30, 100, 116, 139) to Color.argb(140, 100, 116, 139)
+            }
+            val puntos = when (val f = g.forma) {
+                is Forma.Circulo -> calcularPuntosCirculo(LatLng(f.latitud, f.longitud), f.radioMetros)
+                is Forma.Poligono -> f.vertices.map { LatLng(it.first, it.second) }
+            }
+            anotacionesOperacion += map.addPolygon(
+                PolygonOptions().addAll(puntos).fillColor(relleno).strokeColor(borde)
+            )
+        }
+
+        cfg.ruta?.paradas?.forEach { p ->
+            anotacionesOperacion += map.addMarker(
+                MarkerOptions()
+                    .position(LatLng(p.latitud, p.longitud))
+                    .title("${p.orden}. ${p.nombre}")
+                    .snippet(if (p.id in visitadas) "Visitada (posible entrega, sin confirmar)" else "Pendiente")
+            )
+        }
+        cfg.ruta?.let { binding.tvMapTitle.text = "Camión: ${ConfigManager.getInstance(ctx).nombreDispositivo} · ${it.nombre}" }
     }
 
     private fun calcularPuntosCirculo(centro: LatLng, radioMetros: Double, numPuntos: Int = 36): List<LatLng> {

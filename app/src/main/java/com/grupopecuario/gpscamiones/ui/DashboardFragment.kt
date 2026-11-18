@@ -26,6 +26,9 @@ import com.grupopecuario.gpscamiones.auth.AuthManager
 import com.grupopecuario.gpscamiones.auth.Role
 import com.grupopecuario.gpscamiones.config.ConfigManager
 import com.grupopecuario.gpscamiones.databinding.FragmentDashboardBinding
+import com.grupopecuario.gpscamiones.operacion.OperacionRepository
+import com.grupopecuario.gpscamiones.operacion.OperacionTracker
+import com.grupopecuario.gpscamiones.operacion.TipoParada
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -40,6 +43,7 @@ class DashboardFragment : Fragment() {
     private val executor = Executors.newSingleThreadExecutor()
     private var isExpandedDiagnostic = false
     private val placa = mutableStateOf("")
+    private val resumenOperacion = mutableStateOf<List<String>>(emptyList())
 
     private val formatoLima = SimpleDateFormat("dd/MM/yyyy HH:mm:ss", Locale.forLanguageTag("es-PE")).apply {
         timeZone = TimeZone.getTimeZone("America/Lima")
@@ -76,6 +80,9 @@ class DashboardFragment : Fragment() {
                             if (placa.value.isBlank()) "Sin vehículo asignado" else "Camión ${placa.value}",
                             style = MaterialTheme.typography.bodyMedium
                         )
+                        resumenOperacion.value.forEach { linea ->
+                            Text(linea, style = MaterialTheme.typography.bodySmall)
+                        }
                     }
                 }
             }
@@ -83,6 +90,15 @@ class DashboardFragment : Fragment() {
 
         configurarInteracciones()
         actualizarDatos()
+
+        // Tomar de la web el camión, la ruta y las geocercas vigentes
+        val ctx = requireContext().applicationContext
+        executor.execute {
+            val operacion = OperacionRepository.getInstance(ctx)
+            if (OperacionRepository.hayInternet(ctx) && operacion.debeRefrescar() && operacion.refrescar()) {
+                activity?.runOnUiThread { actualizarDatos() }
+            }
+        }
     }
 
     private fun configurarInteracciones() {
@@ -149,6 +165,7 @@ class DashboardFragment : Fragment() {
                 val total = db.contarUbicaciones()
                 val pendientes = db.contarPendientes()
                 val ultima = db.obtenerUltimaUbicacion()
+                val lineasOperacion = construirResumenOperacion(ctx, db)
 
                 val prefs = ctx.getSharedPreferences(GPSLocationService.PREFS, Context.MODE_PRIVATE)
                 val habilitado = prefs.getBoolean(GPSLocationService.KEY_ENABLED, false)
@@ -163,6 +180,7 @@ class DashboardFragment : Fragment() {
 
                 val enMemoria = GPSLocationService.isServiceRunning
                 val tieneFino = act.tienePermisoUbicacion()
+                val ubicacionActivada = GPSLocationService.ubicacionActivada(ctx)
                 val tieneBackground = act.tienePermisoBackground()
                 val tieneNotif = act.tienePermisoNotificaciones()
 
@@ -177,10 +195,23 @@ class DashboardFragment : Fragment() {
                         "PERMISOS DENEGADOS",
                         R.drawable.badge_status_danger,
                         R.color.status_danger_text,
-                        "Android requiere el permiso de ubicación precisa para capturar telemetría."
+                        "Concede permiso de ubicación precisa"
                     )
-                    enMemoria && segundosDesdeUltima in 0..25 -> Quadruple(
-                        "SEGUIMIENTO ACTIVO",
+                    !ubicacionActivada -> Quadruple(
+                        "UBICACIÓN DESACTIVADA",
+                        R.drawable.badge_status_warning,
+                        R.color.status_warning_text,
+                        GPSLocationService.MENSAJE_UBICACION_DESACTIVADA
+                    )
+                    habilitado && estadoServicio == GPSLocationService.ESTADO_ERROR_PROVEEDOR -> Quadruple(
+                        "ERROR DE UBICACIÓN",
+                        R.drawable.badge_status_danger,
+                        R.color.status_danger_text,
+                        "Error del servicio de ubicación"
+                    )
+                    enMemoria && estadoServicio == GPSLocationService.ESTADO_UBICACION_RECIENTE &&
+                        segundosDesdeUltima in 0..25 -> Quadruple(
+                        "GPS ACTIVO",
                         R.drawable.badge_status_active,
                         R.color.status_active_text,
                         "Fijación satelital activa. Capturando y guardando coordenadas en SQLite."
@@ -189,7 +220,7 @@ class DashboardFragment : Fragment() {
                         "ESPERANDO GPS",
                         R.drawable.badge_status_warning,
                         R.color.status_warning_text,
-                        "Servicio activo en memoria. Buscando satélites o esperando nueva fijación."
+                        "Esperando señal GPS"
                     )
                     habilitado && !enMemoria -> Quadruple(
                         "SERVICIO DETENIDO POR SO",
@@ -207,6 +238,7 @@ class DashboardFragment : Fragment() {
 
                 act.runOnUiThread {
                     if (_binding == null) return@runOnUiThread
+                    resumenOperacion.value = lineasOperacion
 
                     // 1. Estado Principal
                     binding.tvBadgeEstado.text = badgeTexto
@@ -264,7 +296,8 @@ class DashboardFragment : Fragment() {
                     binding.tvSqlitePendientes.text = pendientes.toString()
 
                     // 4. Estado de botones de control
-                    binding.btnActivarSeguimiento.isEnabled = !enMemoria
+                    binding.btnActivarSeguimiento.isEnabled = !enMemoria || !ubicacionActivada ||
+                        estadoServicio == GPSLocationService.ESTADO_ERROR_PROVEEDOR
                     binding.btnDetenerSeguimiento.isEnabled = enMemoria || habilitado
 
                     // 5. Diagnóstico Técnico Expandible
@@ -289,6 +322,45 @@ class DashboardFragment : Fragment() {
                 // Log and silently handle
             }
         }
+    }
+
+    /** Ruta asignada, avance de paradas y paradas de hoy por tipo. Llamar en hilo de fondo. */
+    private fun construirResumenOperacion(ctx: Context, db: GPSDatabaseHelper): List<String> {
+        val operacion = OperacionRepository.getInstance(ctx)
+        val config = ConfigManager.getInstance(ctx)
+        val cfg = operacion.actual()
+        val lineas = mutableListOf<String>()
+
+        if (!config.asignadoDesdeWeb) {
+            lineas += "Celular sin asignar en la web · código ${config.androidId}"
+        }
+        val ruta = cfg.ruta
+        if (ruta != null) {
+            val visitadas = operacion.paradasVisitadas().count { id -> ruta.paradas.any { it.id == id } }
+            lineas += "Ruta ${ruta.nombre}: $visitadas de ${ruta.paradas.size} paradas visitadas (entregas sin confirmar)"
+            ruta.paradas.firstOrNull { it.id !in operacion.paradasVisitadas() }?.let {
+                lineas += "Siguiente: ${it.orden}. ${it.nombre}"
+            }
+        } else if (config.asignadoDesdeWeb) {
+            lineas += "Sin ruta asignada para hoy"
+        }
+
+        val inicioDia = java.util.Calendar.getInstance(TimeZone.getTimeZone("America/Lima")).apply {
+            set(java.util.Calendar.HOUR_OF_DAY, 0); set(java.util.Calendar.MINUTE, 0)
+            set(java.util.Calendar.SECOND, 0); set(java.util.Calendar.MILLISECOND, 0)
+        }.timeInMillis
+        val conteo = db.contarParadasPorTipo(inicioDia)
+        val totalParadas = conteo.values.sum()
+        lineas += "Hoy: $totalParadas paradas · ${conteo[TipoParada.POSIBLE_ENTREGA.name] ?: 0} posibles entregas · " +
+            "${conteo[TipoParada.TRAFICO.name] ?: 0} por tráfico · " +
+            "${conteo[TipoParada.NO_PROGRAMADA.name] ?: 0} no programadas"
+
+        OperacionTracker.getInstance(ctx).detenidoDesdeMs?.let { desde ->
+            lineas += "Detenido hace ${(System.currentTimeMillis() - desde) / 60_000} min"
+        }
+        val pendientesEventos = db.contarEventosPendientes()
+        if (pendientesEventos > 0) lineas += "$pendientesEventos eventos esperando señal para subir"
+        return lineas
     }
 
     override fun onDestroyView() {

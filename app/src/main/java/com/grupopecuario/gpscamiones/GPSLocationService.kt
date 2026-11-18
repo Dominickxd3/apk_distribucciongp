@@ -6,6 +6,17 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.IntentFilter
+import android.location.LocationManager
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
+import androidx.core.location.LocationManagerCompat
+import com.grupopecuario.gpscamiones.config.ConfigManager
+import com.grupopecuario.gpscamiones.operacion.OperacionRepository
+import com.grupopecuario.gpscamiones.operacion.OperacionTracker
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
@@ -46,12 +57,21 @@ class GPSLocationService : Service() {
         const val ESTADO_UBICACION_RECIENTE = "UBICACION_RECIENTE"
         const val ESTADO_PERMISOS_INSUFICIENTES = "PERMISOS_INSUFICIENTES"
         const val ESTADO_ERROR_RECUPERACION = "ERROR_RECUPERACION"
+        const val MENSAJE_UBICACION_DESACTIVADA = "Activa la ubicación del dispositivo"
+        const val ESTADO_UBICACION_DESACTIVADA = "UBICACION_DESACTIVADA"
+
+        fun ubicacionActivada(context: Context): Boolean =
+            LocationManagerCompat.isLocationEnabled(context.getSystemService(LocationManager::class.java))
+
         const val ESTADO_ERROR_PROVEEDOR = "ERROR_PROVEEDOR"
 
         const val EXTRA_INICIADO_POR_BOOT = "iniciado_por_boot"
 
         const val CHANNEL_ID = "gps_tracking"
         const val NOTIFICATION_ID = 1001
+
+        /** Con señal, se sube lo pendiente como mucho cada 30 s (no por cada lectura). */
+        private const val INTERVALO_SYNC_MS = 30_000L
 
         // Bandera volátil en memoria para verificación en tiempo real desde la UI del mismo proceso
         @Volatile
@@ -73,15 +93,86 @@ class GPSLocationService : Service() {
 
     private val syncClient by lazy { GPSSyncClient(applicationContext) }
 
+    private val config by lazy { ConfigManager.getInstance(applicationContext) }
+
+    private val operacion by lazy { OperacionRepository.getInstance(applicationContext) }
+
+    private val tracker by lazy { OperacionTracker.getInstance(applicationContext) }
+
     private var executor: ExecutorService? = null
+
+    /** Hilo aparte para la red: subir datos no retrasa el guardado de posiciones. */
+    private var syncExecutor: ExecutorService? = null
+
+    @Volatile
+    private var ultimoIntentoSyncMs = 0L
+
+    /** Al recuperar señal se vacía de inmediato todo lo acumulado sin conexión. */
+    private val redCallback = object : ConnectivityManager.NetworkCallback() {
+        @Volatile
+        private var conInternet = false
+
+        override fun onCapabilitiesChanged(network: Network, caps: NetworkCapabilities) {
+            val ahora = caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+            // Solo en la transición "sin señal → con señal", no en cada cambio de intensidad
+            if (ahora && !conInternet) {
+                Log.i("GPSCamiones", "Señal recuperada: subiendo datos acumulados")
+                programarSincronizacion(forzar = true)
+            }
+            conInternet = ahora
+        }
+
+        override fun onLost(network: Network) {
+            conInternet = false
+        }
+    }
+
+    /**
+     * Sube posiciones y eventos pendientes y refresca la asignación de la web.
+     * Sin [forzar], como mucho una vez cada [INTERVALO_SYNC_MS].
+     */
+    private fun programarSincronizacion(forzar: Boolean) {
+        val ahora = System.currentTimeMillis()
+        if (!forzar && ahora - ultimoIntentoSyncMs < INTERVALO_SYNC_MS) return
+        if (!OperacionRepository.hayInternet(this)) return
+        ultimoIntentoSyncMs = ahora
+        val exec = syncExecutor ?: return
+        if (exec.isShutdown) return
+        exec.execute {
+            try {
+                if (forzar || operacion.debeRefrescar()) operacion.refrescar()
+                syncClient.vaciarPendientes()
+            } catch (e: Exception) {
+                Log.w("GPSCamiones", "Sincronización en segundo plano falló", e)
+            }
+        }
+    }
 
     @Volatile
     private var seguimientoIniciado = false
 
+    private val cambiosUbicacion = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            if (!ubicacionActivada(context)) {
+                informarUbicacionDesactivada()
+            } else if (seguimientoIniciado) {
+                actualizarEstado(ESTADO_ESPERANDO_UBICACION, "Esperando señal GPS")
+                actualizarNotificacion("Esperando señal GPS")
+            } else {
+                iniciarGPS()
+            }
+        }
+    }
+
+    private fun informarUbicacionDesactivada() {
+        actualizarEstado(ESTADO_UBICACION_DESACTIVADA, MENSAJE_UBICACION_DESACTIVADA)
+        actualizarNotificacion(MENSAJE_UBICACION_DESACTIVADA)
+    }
+
     private val callback = object : LocationCallback() {
         override fun onLocationResult(result: LocationResult) {
             val locations = result.locations
-            if (locations.isEmpty()) return
+            if (!seguimientoIniciado || !ubicacionActivada(this@GPSLocationService) || locations.isEmpty()) return
 
             val ahora = System.currentTimeMillis()
             val prefs = getSharedPreferences(PREFS, MODE_PRIVATE)
@@ -106,18 +197,31 @@ class GPSLocationService : Service() {
                 for (location in locations) {
                     exec.execute {
                         try {
-                            database.guardarUbicacion(location)
-                            syncClient.sincronizarPendientes()
-                            Log.d("GPSCamiones", "Ubicación guardada en SQLite: ${location.time}")
+                            // Siempre se guarda primero en el celular; se sube después
+                            val sinConexion = !OperacionRepository.hayInternet(this@GPSLocationService)
+                            database.guardarUbicacion(
+                                location,
+                                providerUnitId = config.providerUnitId,
+                                placa = config.nombreDispositivo.trim().uppercase(),
+                                sinConexion = sinConexion
+                            )
+                            tracker.procesar(location, sinConexion)
+                            Log.d("GPSCamiones", "Ubicación guardada en SQLite: ${location.time} (sin señal=$sinConexion)")
                         } catch (e: Exception) {
                             Log.e("GPSCamiones", "Error al guardar ubicación en SQLite", e)
                         }
                     }
                 }
+                programarSincronizacion(forzar = false)
             }
         }
 
         override fun onLocationAvailability(availability: LocationAvailability) {
+            if (!seguimientoIniciado) return
+            if (!ubicacionActivada(this@GPSLocationService)) {
+                informarUbicacionDesactivada()
+                return
+            }
             val disponible = availability.isLocationAvailable
             Log.d("GPSCamiones", "Disponibilidad del proveedor GPS: $disponible")
 
@@ -127,11 +231,6 @@ class GPSLocationService : Service() {
                     "Buscando satélites GPS / Señal temporalmente no disponible"
                 )
                 actualizarNotificacion("Buscando señal satelital GPS...")
-            } else {
-                actualizarEstado(
-                    ESTADO_ESPERANDO_UBICACION,
-                    "Señal GPS recuperada, esperando fijación de coordenadas"
-                )
             }
         }
     }
@@ -140,7 +239,20 @@ class GPSLocationService : Service() {
         super.onCreate()
         isServiceRunning = true
         executor = Executors.newSingleThreadExecutor()
+        syncExecutor = Executors.newSingleThreadExecutor()
         crearCanalNotificacion()
+        try {
+            getSystemService(ConnectivityManager::class.java)?.registerDefaultNetworkCallback(redCallback)
+        } catch (e: Exception) {
+            Log.w("GPSCamiones", "No se pudo escuchar cambios de red", e)
+        }
+        programarSincronizacion(forzar = true)
+        ContextCompat.registerReceiver(
+            this,
+            cambiosUbicacion,
+            IntentFilter(LocationManager.MODE_CHANGED_ACTION),
+            ContextCompat.RECEIVER_NOT_EXPORTED
+        )
         Log.i("GPSCamiones", "GPSLocationService creado")
     }
 
@@ -184,7 +296,10 @@ class GPSLocationService : Service() {
 
         // 4. Iniciar Foreground Service con notificación continua
         try {
-            val notification = crearNotificacion("Seguimiento de ubicación activo")
+            val notification = crearNotificacion(
+                if (ubicacionActivada(this)) "Seguimiento de ubicación activo"
+                else MENSAJE_UBICACION_DESACTIVADA
+            )
 
             if (Build.VERSION.SDK_INT >= 29) {
                 startForeground(
@@ -199,10 +314,9 @@ class GPSLocationService : Service() {
                 )
             }
 
-            actualizarEstado(
-                ESTADO_INICIADO,
-                "Servicio en primer plano activo"
-            )
+            if (!seguimientoIniciado) {
+                actualizarEstado(ESTADO_INICIADO, "Servicio en primer plano activo")
+            }
 
             // 5. Iniciar la suscripción a FusedLocationProviderClient
             iniciarGPS()
@@ -233,6 +347,11 @@ class GPSLocationService : Service() {
 
     @Synchronized
     private fun iniciarGPS() {
+        if (!ubicacionActivada(this)) {
+            informarUbicacionDesactivada()
+            return
+        }
+
         if (seguimientoIniciado) {
             Log.i("GPSCamiones", "GPS ya se encuentra escuchando actualizaciones. Se omite registro duplicado.")
             return
@@ -261,8 +380,10 @@ class GPSLocationService : Service() {
             seguimientoIniciado = true
             actualizarEstado(
                 ESTADO_ESPERANDO_UBICACION,
-                "Solicitud GPS enviada, esperando primera fijación satelital"
+                "Esperando señal GPS"
             )
+
+            actualizarNotificacion("Esperando señal GPS")
 
             gps.requestLocationUpdates(
                 request,
@@ -272,6 +393,7 @@ class GPSLocationService : Service() {
                 Log.i("GPSCamiones", "Suscripción a LocationUpdates exitosa")
             }.addOnFailureListener { error ->
                 Log.e("GPSCamiones", "Error solicitando actualizaciones de ubicación", error)
+                if (!seguimientoIniciado) return@addOnFailureListener
                 seguimientoIniciado = false
 
                 if (error is SecurityException) {
@@ -280,8 +402,10 @@ class GPSLocationService : Service() {
                         "Permisos de ubicación revocados: ${error.message}"
                     )
                     stopSelf()
+                } else if (!ubicacionActivada(this)) {
+                    informarUbicacionDesactivada()
                 } else {
-                    // Error del proveedor o Google Play Services no fatal: registrar sin destruir inmediatamente
+                    actualizarNotificacion("Error del servicio de ubicación")
                     actualizarEstado(
                         ESTADO_ERROR_PROVEEDOR,
                         "Error temporal del proveedor GPS: ${error.message}"
@@ -300,6 +424,7 @@ class GPSLocationService : Service() {
         } catch (e: Exception) {
             seguimientoIniciado = false
             Log.e("GPSCamiones", "Error inesperado al solicitar ubicación", e)
+            actualizarNotificacion("Error del servicio de ubicación")
             actualizarEstado(
                 ESTADO_ERROR_PROVEEDOR,
                 "Error inesperado al conectar GPS: ${e.message}"
@@ -397,6 +522,7 @@ class GPSLocationService : Service() {
     }
 
     override fun onDestroy() {
+        unregisterReceiver(cambiosUbicacion)
         isServiceRunning = false
 
         if (seguimientoIniciado) {
@@ -410,6 +536,13 @@ class GPSLocationService : Service() {
 
         executor?.shutdown()
         executor = null
+        syncExecutor?.shutdown()
+        syncExecutor = null
+        try {
+            getSystemService(ConnectivityManager::class.java)?.unregisterNetworkCallback(redCallback)
+        } catch (e: Exception) {
+            // ya no estaba registrado
+        }
 
         val habilitado = getSharedPreferences(PREFS, MODE_PRIVATE)
             .getBoolean(KEY_ENABLED, false)
