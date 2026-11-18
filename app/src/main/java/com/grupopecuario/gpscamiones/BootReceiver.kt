@@ -116,6 +116,7 @@ class BootReceiver : BroadcastReceiver() {
                 )
                 .apply()
 
+            VigilanteGPS.programar(context)
             Log.i("GPSCamiones", "Foreground Service iniciado exitosamente desde BootReceiver tras $accion")
 
         } catch (e: Exception) {

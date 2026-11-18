@@ -234,6 +234,10 @@ class AdminFragment : Fragment() {
 
         binding.tvAdminPermNotif.text = "• Notificaciones continuas: ${if (tieneNotif) "Concedido" else "No concedido"}"
         binding.tvAdminPermNotif.setTextColor(ContextCompat.getColor(ctx, if (tieneNotif) R.color.status_active_text else R.color.status_warning_text))
+        val sinRestriccion = com.grupopecuario.gpscamiones.VigilanteGPS.sinRestriccionDeBateria(ctx)
+        binding.tvAdminPermNotif.append(
+            "\n• Batería sin restricción: ${if (sinRestriccion) "Sí" else "NO (Android puede detener el GPS)"}"
+        )
 
         // 5. Estadísticas SQLite
         actualizarEstadisticasDB()

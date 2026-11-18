@@ -146,6 +146,8 @@ class GPSLocationService : Service() {
         if (exec.isShutdown) return
         exec.execute {
             try {
+                // Renueva el token sin contraseña antes de que venza: nadie abre la app
+                com.grupopecuario.gpscamiones.auth.AuthRepository(applicationContext).renovarSesionSiHaceFalta()
                 if (forzar || operacion.debeRefrescar()) operacion.refrescar()
                 syncClient.vaciarPendientes()
             } catch (e: Exception) {
@@ -254,6 +256,7 @@ class GPSLocationService : Service() {
         executor = Executors.newSingleThreadExecutor()
         syncExecutor = Executors.newSingleThreadExecutor()
         crearCanalNotificacion()
+        VigilanteGPS.programar(this)
         try {
             getSystemService(ConnectivityManager::class.java)?.registerDefaultNetworkCallback(redCallback)
         } catch (e: Exception) {

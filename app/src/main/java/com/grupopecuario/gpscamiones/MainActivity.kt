@@ -59,6 +59,7 @@ class MainActivity : AppCompatActivity() {
 
     // Contrato para permisos de ubicación en primer plano
     private var avisoUbicacionMostrado = false
+    private var avisoBateriaMostrado = false
     private val ajustesUbicacion = registerForActivityResult(
         ActivityResultContracts.StartIntentSenderForResult()
     ) {
@@ -260,6 +261,33 @@ class MainActivity : AppCompatActivity() {
                 "En Ajustes, activa Ubicación precisa, Permitir todo el tiempo para reanudar después de reiniciar y las Notificaciones para ver los avisos del GPS.",
                 abrirAjustes = true
             )
+            return
+        }
+        // Sin esta excepción Samsung/Android pueden dormir o cerrar el GPS cuando
+        // nadie abre la app. Se pide una vez por apertura hasta que se conceda.
+        if (prefs.getBoolean(GPSLocationService.KEY_ENABLED, false) && !avisoBateriaMostrado &&
+            !VigilanteGPS.sinRestriccionDeBateria(this)
+        ) {
+            avisoBateriaMostrado = true
+            AlertDialog.Builder(this)
+                .setTitle("Permitir GPS sin restricción de batería")
+                .setMessage(
+                    "Para que el camión siga enviando su ubicación aunque nadie abra la app, " +
+                        "el celular debe permitir que GPSCamiones funcione sin restricción de batería.\n\n" +
+                        "En la siguiente pantalla elige \"Permitir\"."
+                )
+                .setPositiveButton("Continuar") { _, _ ->
+                    try {
+                        startActivity(
+                            Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
+                                .setData(Uri.parse("package:$packageName"))
+                        )
+                    } catch (e: Exception) {
+                        startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
+                    }
+                }
+                .setNegativeButton("Ahora no", null)
+                .show()
             return
         }
         if (esperandoAjustesBackground) {

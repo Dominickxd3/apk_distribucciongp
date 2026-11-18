@@ -200,9 +200,75 @@ class AuthRepository(private val context: Context) {
     companion object {
         /** Servidor corporativo de producción */
         private const val DEFAULT_BASE_URL = "https://distribucionrutas.duckdns.org"
+        private const val INTERVALO_REINTENTO_MS = 5 * 60 * 1000L
+
+        /** Renovar si ya pasó la mitad de la vigencia o si venció. Función pura para pruebas. */
+        fun necesitaRenovar(emitidoMs: Long, venceMs: Long, ahoraMs: Long): Boolean {
+            if (venceMs <= 0L) return false
+            if (ahoraMs >= venceMs) return true
+            val vigencia = venceMs - emitidoMs
+            return vigencia <= 0L || ahoraMs >= emitidoMs + vigencia / 2
+        }
     }
 
     fun logout() {
         authManager.logout()
+    }
+
+    /**
+     * Renueva el token sin contraseña cuando ya pasó la mitad de su vigencia (o
+     * venció). Así el celular sigue enviando sin que nadie abra la app. Bloqueante:
+     * llamar en hilo de fondo. Devuelve true si guardó un token nuevo.
+     */
+    fun renovarSesionSiHaceFalta(ahora: Long = System.currentTimeMillis()): Boolean {
+        val session = authManager.getCurrentSession()
+        val token = session.token
+        if (token.isNullOrBlank() || session.role == Role.INVITADO || session.isLocalSession) return false
+        if (!necesitaRenovar(session.loginTimestamp, session.expiresAtMs, ahora)) return false
+        if (com.grupopecuario.gpscamiones.DiagnosticoSync.tokenFueRechazado(context, token)) return false
+
+        val prefs = context.getSharedPreferences("gps_auth_renovacion", Context.MODE_PRIVATE)
+        if (ahora - prefs.getLong("ultimo_intento_ms", 0L) < INTERVALO_REINTENTO_MS) return false
+        prefs.edit().putLong("ultimo_intento_ms", ahora).apply()
+
+        val url = loginUrl()?.replace("/auth/login", "/auth/refresh") ?: return false
+        val connection = (URL(url).openConnection() as HttpURLConnection).apply {
+            requestMethod = "POST"
+            connectTimeout = 15_000
+            readTimeout = 20_000
+            setRequestProperty("Accept", "application/json")
+            setRequestProperty("Authorization", "Bearer $token")
+        }
+        return try {
+            val code = connection.responseCode
+            val stream = if (code in 200..299) connection.inputStream else connection.errorStream
+            val texto = stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }.orEmpty()
+            if (code in 200..299) {
+                val json = JSONObject(texto)
+                authManager.saveSession(
+                    session.copy(
+                        token = json.getString("token"),
+                        loginTimestamp = ahora,
+                        expiresAtMs = fechaExpiracionMs(json.optString("expiresAt"))
+                    )
+                )
+                android.util.Log.i("GPSCamiones", "Sesión renovada automáticamente hasta ${json.optString("expiresAt")}")
+                true
+            } else {
+                val estado = com.grupopecuario.gpscamiones.DiagnosticoSync.clasificarHttp(code)
+                if (estado == com.grupopecuario.gpscamiones.DiagnosticoSync.Estado.SESION_RECHAZADA) {
+                    com.grupopecuario.gpscamiones.DiagnosticoSync.marcarTokenRechazado(context, token)
+                }
+                com.grupopecuario.gpscamiones.DiagnosticoSync.registrar(
+                    context, estado, "/api/mobile/auth/refresh: ${mensajeDeError(texto, code)}", code
+                )
+                false
+            }
+        } catch (e: Exception) {
+            android.util.Log.w("GPSCamiones", "No se pudo renovar la sesión ahora: ${e.javaClass.simpleName}")
+            false
+        } finally {
+            connection.disconnect()
+        }
     }
 }
