@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.util.Log
+import com.grupopecuario.gpscamiones.DiagnosticoSync
 import com.grupopecuario.gpscamiones.auth.AuthManager
 import com.grupopecuario.gpscamiones.config.ConfigManager
 import org.json.JSONArray
@@ -173,8 +174,16 @@ class OperacionRepository private constructor(context: Context) {
         prefs.edit().putLong(KEY_ULTIMO_INTENTO_MS, System.currentTimeMillis()).apply()
         val session = auth.getCurrentSession()
         val token = session.token
-        if (!session.isAuthenticated || token.isNullOrBlank()) {
+        if (token.isNullOrBlank() || session.role == com.grupopecuario.gpscamiones.auth.Role.INVITADO) {
             registrarError("Sin sesión iniciada")
+            return false
+        }
+        if (!session.isAuthenticated) {
+            registrarError("Sesión vencida: vuelve a iniciar sesión")
+            return false
+        }
+        if (DiagnosticoSync.tokenFueRechazado(appContext, token)) {
+            registrarError("La web rechazó la sesión: vuelve a iniciar sesión")
             return false
         }
         val url = urlBase(config) + "/api/mobile/device/config?deviceId=" +
@@ -192,8 +201,17 @@ class OperacionRepository private constructor(context: Context) {
         return try {
             val code = conn.responseCode
             if (code !in 200..299) {
-                if (code == 401 || code == 403) auth.logout()
-                registrarError("La web respondió HTTP $code")
+                val mensaje = try {
+                    JSONObject(conn.errorStream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }.orEmpty())
+                        .optString("message")
+                } catch (e: Exception) { "" }
+                val estado = DiagnosticoSync.clasificarHttp(code)
+                if (estado == DiagnosticoSync.Estado.SESION_RECHAZADA) {
+                    // Sin cerrar la sesión: se muestra el motivo (antes era un cierre silencioso)
+                    DiagnosticoSync.marcarTokenRechazado(appContext, token)
+                }
+                DiagnosticoSync.registrar(appContext, estado, "/api/mobile/device/config: ${mensaje.ifBlank { "sin detalle" }}", code)
+                registrarError("La web respondió HTTP $code${if (mensaje.isNotBlank()) ": $mensaje" else ""}")
                 return false
             }
             val texto = conn.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }

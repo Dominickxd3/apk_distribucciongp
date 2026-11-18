@@ -134,7 +134,13 @@ class GPSLocationService : Service() {
     private fun programarSincronizacion(forzar: Boolean) {
         val ahora = System.currentTimeMillis()
         if (!forzar && ahora - ultimoIntentoSyncMs < INTERVALO_SYNC_MS) return
-        if (!OperacionRepository.hayInternet(this)) return
+        if (!OperacionRepository.hayInternet(this)) {
+            if (database.contarPendientes() > 0) {
+                DiagnosticoSync.registrar(this, DiagnosticoSync.Estado.SIN_INTERNET,
+                    "Android no reporta una red con internet validada; se reintentará al recuperar señal.")
+            }
+            return
+        }
         ultimoIntentoSyncMs = ahora
         val exec = syncExecutor ?: return
         if (exec.isShutdown) return
@@ -190,7 +196,14 @@ class GPSLocationService : Service() {
             )
 
             // Actualizar el texto de la notificación con la última lectura
-            actualizarNotificacion("Rastreo activo: últimas coordenadas registradas")
+            // Si el envío está detenido se avisa en la notificación, para que no pase inadvertido
+            val diagnostico = DiagnosticoSync.leer(this@GPSLocationService)
+            actualizarNotificacion(
+                if (diagnostico != null && diagnostico.estado.bloqueaEnvio &&
+                    diagnostico.estado != DiagnosticoSync.Estado.SIN_INTERNET
+                ) "Rastreo activo · NO SE ENVÍA: ${DiagnosticoSync.mensajeCorto(diagnostico)}"
+                else "Rastreo activo: últimas coordenadas registradas"
+            )
 
             val exec = executor
             if (exec != null && !exec.isShutdown) {

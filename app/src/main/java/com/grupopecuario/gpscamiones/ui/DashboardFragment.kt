@@ -18,6 +18,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
+import com.grupopecuario.gpscamiones.DiagnosticoSync
 import com.grupopecuario.gpscamiones.GPSDatabaseHelper
 import com.grupopecuario.gpscamiones.GPSLocationService
 import com.grupopecuario.gpscamiones.MainActivity
@@ -360,6 +361,19 @@ class DashboardFragment : Fragment() {
         }
         val pendientesEventos = db.contarEventosPendientes()
         if (pendientesEventos > 0) lineas += "$pendientesEventos eventos esperando señal para subir"
+
+        // Por qué se envía o no a la web (sesión, vehículo, HTTP, conectividad)
+        val pendientes = db.contarPendientes()
+        val diagnostico = DiagnosticoSync.leer(ctx)
+        if (diagnostico != null && diagnostico.estado.bloqueaEnvio && pendientes > 0) {
+            lineas += "⚠ $pendientes posiciones sin enviar: ${DiagnosticoSync.mensajeCorto(diagnostico)}" +
+                (if (diagnostico.codigoHttp > 0) " (HTTP ${diagnostico.codigoHttp})" else "")
+        } else if (pendientes > 0) {
+            lineas += "$pendientes posiciones en cola de envío"
+        }
+        DiagnosticoSync.ultimoOkMs(ctx).takeIf { it > 0 }?.let {
+            lineas += "Último envío confirmado: ${formatoLima.format(Date(it))}"
+        }
         return lineas
     }
 

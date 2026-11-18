@@ -30,11 +30,28 @@ class GPSSyncClient(context: Context) {
 
     private data class Credenciales(val token: String)
 
+    /** Token vigente, o null registrando el motivo exacto por el que no se envía. */
     private fun credenciales(): Credenciales? {
         val session = authManager.getCurrentSession()
         val token = session.token
-        if (token.isNullOrBlank() || !session.isAuthenticated) return null
-        return Credenciales(token)
+        val motivo = when {
+            session.role == com.grupopecuario.gpscamiones.auth.Role.INVITADO || token.isNullOrBlank() ->
+                DiagnosticoSync.Estado.SIN_SESION to "No hay sesión guardada en el celular."
+            !session.isAuthenticated ->
+                DiagnosticoSync.Estado.SESION_EXPIRADA to "El token venció; hay que iniciar sesión de nuevo."
+            DiagnosticoSync.tokenFueRechazado(appContext, token) ->
+                DiagnosticoSync.Estado.SESION_RECHAZADA to
+                    (DiagnosticoSync.leer(appContext)?.takeIf { it.estado == DiagnosticoSync.Estado.SESION_RECHAZADA }?.detalle
+                        ?: "La web rechazó este token; hay que iniciar sesión de nuevo.")
+            else -> null
+        }
+        if (motivo != null) {
+            if (database.contarPendientes() > 0 || database.contarEventosPendientes() > 0) {
+                DiagnosticoSync.registrar(appContext, motivo.first, motivo.second)
+            }
+            return null
+        }
+        return Credenciales(token!!)
     }
 
     /**
@@ -67,7 +84,10 @@ class GPSSyncClient(context: Context) {
     fun sincronizarPendientes(): Int {
         val cred = credenciales() ?: return 0
         val serverUrl = config.servidorSyncUrl.trim().ifBlank { DEFAULT_SERVER_URL }
-        if (!urlPermitida(serverUrl)) return 0
+        if (!urlPermitida(serverUrl)) {
+            DiagnosticoSync.registrar(appContext, DiagnosticoSync.Estado.URL_NO_PERMITIDA, "Solo se permite HTTPS: $serverUrl")
+            return 0
+        }
 
         val pending = database.obtenerPendientesSincronizacion(50)
         if (pending.isEmpty()) return 0
@@ -106,12 +126,34 @@ class GPSSyncClient(context: Context) {
                 put("points", points)
             }
 
-            val ids = enviar(serverUrl, cred, body) ?: break
-            database.marcarSincronizados(ids)
-            procesados += ids.size
+            val respuesta = enviar(serverUrl, cred, body) ?: break
+            val confirmados = idsConfirmados(items.map { it.id }, respuesta)
+            if (confirmados.isEmpty()) {
+                DiagnosticoSync.registrar(
+                    appContext, DiagnosticoSync.Estado.SIN_CONFIRMACION,
+                    "La web respondió OK pero no devolvió en processedIds ninguno de los ${items.size} ids enviados."
+                )
+                break
+            }
+            database.marcarSincronizados(confirmados)
+            procesados += confirmados.size
         }
-        if (procesados > 0) config.fechaUltimaSincronizacionMs = System.currentTimeMillis()
+        if (procesados > 0) {
+            config.fechaUltimaSincronizacionMs = System.currentTimeMillis()
+            val restantes = database.contarPendientes()
+            DiagnosticoSync.registrar(
+                appContext, DiagnosticoSync.Estado.OK,
+                "$procesados posiciones confirmadas por la web, $restantes pendientes." +
+                    if (config.asignadoDesdeWeb) "" else " Celular sin asignar en la web: se envía como ${config.nombreDispositivo}."
+            )
+        }
         return procesados
+    }
+
+    /** Ids locales que la web confirmó (sin distinguir mayúsculas). */
+    private fun idsConfirmados(enviados: List<String>, respuesta: List<String>): List<String> {
+        val confirmados = respuesta.map { it.lowercase() }.toSet()
+        return enviados.filter { it.lowercase() in confirmados }
     }
 
     /** Sube un lote de eventos de paradas y geocercas. */
@@ -143,9 +185,11 @@ class GPSSyncClient(context: Context) {
                 put("plate", vehiculo.second)
                 put("events", events)
             }
-            val ids = enviar(serverUrl, cred, body) ?: break
-            database.marcarEventosSincronizados(ids)
-            procesados += ids.size
+            val respuesta = enviar(serverUrl, cred, body) ?: break
+            val confirmados = idsConfirmados(items.map { it.id }, respuesta)
+            if (confirmados.isEmpty()) break
+            database.marcarEventosSincronizados(confirmados)
+            procesados += confirmados.size
         }
         return procesados
     }
@@ -165,14 +209,15 @@ class GPSSyncClient(context: Context) {
             connection.outputStream.bufferedWriter(Charsets.UTF_8).use { it.write(body.toString()) }
             val code = connection.responseCode
             if (code !in 200..299) {
-                if (code == 401 || code == 403) {
-                    // El token expiró o fue revocado: se cierra la sesión para
-                    // que la app vuelva a pedir credenciales.
-                    authManager.logout()
-                    Log.w("GPSCamiones", "Token de sesión rechazado (HTTP $code); se requiere iniciar sesión de nuevo")
-                } else {
-                    Log.w("GPSCamiones", "Servidor ($serverUrl) respondió HTTP $code")
+                val mensaje = mensajeServidor(connection)
+                val estado = DiagnosticoSync.clasificarHttp(code)
+                if (estado == DiagnosticoSync.Estado.SESION_RECHAZADA) {
+                    // No se borra la sesión (antes se cerraba sin avisar y el envío
+                    // quedaba detenido en silencio). Se deja de usar este token y se
+                    // muestra el motivo hasta que el usuario inicie sesión de nuevo.
+                    DiagnosticoSync.marcarTokenRechazado(appContext, cred.token)
                 }
+                DiagnosticoSync.registrar(appContext, estado, "${rutaCorta(serverUrl)}: ${mensaje.ifBlank { "sin detalle" }}", code)
                 null
             } else {
                 val response = connection.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
@@ -180,11 +225,27 @@ class GPSSyncClient(context: Context) {
                 buildList { for (index in 0 until ids.length()) add(ids.getString(index)) }
             }
         } catch (error: Exception) {
-            Log.w("GPSCamiones", "Sincronización pendiente: ${error.javaClass.simpleName}")
+            DiagnosticoSync.registrar(
+                appContext, DiagnosticoSync.Estado.ERROR_RED,
+                "${rutaCorta(serverUrl)}: ${error.javaClass.simpleName} ${error.message.orEmpty()}".trim()
+            )
             null
         } finally {
             connection.disconnect()
         }
+    }
+
+    private fun rutaCorta(url: String): String =
+        url.substringAfter("://").substringAfter('/', "").let { "/$it" }.substringBefore('?')
+
+    /** Campo "message" del cuerpo de error de NestJS, si existe. */
+    private fun mensajeServidor(connection: HttpURLConnection): String = try {
+        val texto = connection.errorStream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }.orEmpty()
+        val json = JSONObject(texto)
+        json.optJSONArray("message")?.let { arr -> (0 until arr.length()).joinToString("; ") { arr.getString(it) } }
+            ?: json.optString("message")
+    } catch (e: Exception) {
+        ""
     }
 
     /**

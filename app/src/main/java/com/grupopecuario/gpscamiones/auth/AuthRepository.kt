@@ -106,7 +106,19 @@ class AuthRepository(private val context: Context) {
             if (code !in 200..299) {
                 AuthResult.Failure(mensajeDeError(response, code))
             } else {
-                crearSesion(JSONObject(response))
+                crearSesion(JSONObject(response)).also { resultado ->
+                    if (resultado is AuthResult.Success) {
+                        // Con el token nuevo: registrar el celular y subir lo acumulado
+                        Thread {
+                            try {
+                                com.grupopecuario.gpscamiones.operacion.OperacionRepository.getInstance(context).refrescar()
+                                com.grupopecuario.gpscamiones.GPSSyncClient(context).vaciarPendientes()
+                            } catch (e: Exception) {
+                                android.util.Log.w("GPSCamiones", "Sincronización tras el login falló", e)
+                            }
+                        }.start()
+                    }
+                }
             }
         } catch (error: Exception) {
             AuthResult.Failure(

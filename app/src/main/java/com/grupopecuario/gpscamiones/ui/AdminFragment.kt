@@ -12,6 +12,7 @@ import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
+import com.grupopecuario.gpscamiones.DiagnosticoSync
 import com.grupopecuario.gpscamiones.GPSDatabaseHelper
 import com.grupopecuario.gpscamiones.MainActivity
 import com.grupopecuario.gpscamiones.R
@@ -197,6 +198,19 @@ class AdminFragment : Fragment() {
             append("\n• Geocercas recibidas: ${cfg.geocercas.size}")
             if (cfg.descargadaMs > 0) append("\n• Última consulta a la web: ${formatoLima.format(Date(cfg.descargadaMs))}")
             operacion.ultimoError.takeIf { it.isNotBlank() }?.let { append("\n• Aviso: $it") }
+            DiagnosticoSync.leer(ctx)?.let { d ->
+                append("\n• Sincronización: ${d.estado}${if (d.codigoHttp > 0) " (HTTP ${d.codigoHttp})" else ""}")
+                append(" — ${d.detalle}")
+                append("\n  Registrado: ${formatoLima.format(Date(d.fechaMs))}")
+            }
+            append("\n• Sesión: ")
+            append(when {
+                !session.isAuthenticated && session.token.isNullOrBlank() -> "no iniciada"
+                !session.isAuthenticated -> "vencida"
+                DiagnosticoSync.tokenFueRechazado(ctx, session.token!!) -> "rechazada por la web"
+                session.expiresAtMs > 0 -> "válida hasta ${formatoLima.format(Date(session.expiresAtMs))}"
+                else -> "válida"
+            })
         }
         binding.tvAdminHardwareModel.text = "• Dispositivo Móvil: ${config.modeloHardware}"
 
